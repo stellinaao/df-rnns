@@ -1,0 +1,25 @@
+Metadata-Version: 2.4
+Name: df-rnn
+Version: 0.0.1
+Summary: Fitting various RNNs to corticostriatal circuit activity during a dynamic foraging task.
+Home-page: https://github.com/stellinaao/df-rnns
+Author: Stellina Ao
+Author-email: stellina@ucla.edu
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+Fitting various RNNs to corticostriatal neural activity during a dynamic foraging task. Final project for ECE 247A (Neural Networks and Deep Learning) at UCLA.
+
+Clone and install in editable mode.

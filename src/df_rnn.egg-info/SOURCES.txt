@@ -1,0 +1,7 @@
+README.md
+setup.py
+src/df_rnn.egg-info/PKG-INFO
+src/df_rnn.egg-info/SOURCES.txt
+src/df_rnn.egg-info/dependency_links.txt
+src/df_rnn.egg-info/requires.txt
+src/df_rnn.egg-info/top_level.txt
