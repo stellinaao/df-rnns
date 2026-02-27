@@ -2,3 +2,4 @@ vars/
 figs/
 src/DAMN/
 *.npy
+*.npz
