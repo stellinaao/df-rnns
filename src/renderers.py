@@ -114,7 +114,7 @@ class KernelRenderer:
         for _, reg in dmat.regressors.items():
             self.all_tags.extend(reg.tags)
         self.all_tags = np.unique(self.all_tags)
-        self.all_tags = [t for t in self.all_tags if t not in ['task', 'interaction', 'hmm']]
+        self.all_tags = [t for t in self.all_tags if t not in ['task', 'interaction', 'hmm', 'behavior']]
         
         self.model = model
         self.dmat = dmat

@@ -30,12 +30,12 @@ from DAMN.damn import *
 #         dmat.add_regressor(reg)
 #     return dmat
 
-def build_model(master_alignment_times, trial_data, pres, posts, bwidth, toy=False):
+def build_model(master_alignment_times, trial_data, svds, vidtime, pres, posts, bwidth, toy=False):
     regressors = []
     if not toy:
         regressors.extend(get_task_regressors(trial_data, bwidth))
         # regressors.extend(get_hmm_regressors(trial_data, bwidth))
-        # regressors.extend(get_video_svd_regressors(trial_data, bwidth))
+        regressors.extend(get_video_svd_regressors(svds, vidtime, bwidth))
    
     dmat = DesignMatrix(master_alignment_times,
                     pres, posts, bwidth)
@@ -225,36 +225,21 @@ def get_hmm_regressors(trial_data, bwidth):
 #         r.tags.add('behavior')
 #     return dlcregs
 
-def get_video_svd_regressors(eid, bwidth):
+def get_video_svd_regressors(svds, vidtime, bwidth):
     ######
-    topdims = 20 # FOR NOW ONLY TOP 10 DIMS
+    topdims = 3 # FOR NOW ONLY TOP 5 DIMS
     ######
-    sesspath = one.eid2path(eid)
     svd_regs = []
-    for label in LABELS:
-        svd_path = sesspath / 'raw_video_data' / f'_iblrig_{label}Camera.svd.npy'
-        me_svd_path = sesspath / 'raw_video_data' / f'_iblrig_{label}Camera.motion_energy_svd.npy'
-
-        svt = np.load(svd_path, allow_pickle=True).item()['SVT']
-        me_svt = np.load(me_svd_path, allow_pickle=True).item()['SVT']
-        vidtime = one.load_object(eid, f'{label}Camera', collection='alf').times
-
-        for i in range(svt.shape[0]):
-            svdreg = ContinuousRegressor(f'{label}_svd_{i}', vidtime, svt.T[:,i], bwidth, tags='video')
-            #svdreg.add_basis_function('gaussian_smooth', .5, .5)
-            svdreg.add_basis_function('raised_cosine', .3, .2, n_funcs=10)
-            svd_regs.append(svdreg)
-            if i==topdims-1:
-                break
-        for i in range(me_svt.shape[0]):
-            mereg = ContinuousRegressor(f'{label}_motion_energy_svd_{i}', vidtime, me_svt.T[:,i], bwidth, tags='video')
-            #mereg.add_basis_function('gaussian_smooth', .5, .5)
-            mereg.add_basis_function('raised_cosine', .3, .2, n_funcs=10)
-            svd_regs.append(mereg)
-            if i==topdims-1:
-                break
+    
+    for i in range(topdims):
+        svdreg = ContinuousRegressor(f'svd_{i}', vidtime, svds.T[:,i], bwidth, tags='video', zscore=False) # zscore=False is a workaround for now
+        svdreg.add_basis_function('raised_cosine', 0.3, 0.2, n_funcs=10)
+        svd_regs.append(svdreg)
+        if i==topdims-1:
+            break
     for r in svd_regs:
         r.tags.add('behavior')
+        
     return svd_regs
 
 # # TODO: add passive data if it's there

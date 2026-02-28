@@ -13,7 +13,17 @@ class NeuronViewer:
             self.axes = [self.axes]
         else:
             self.fig, self.axes = plt.subplots(ncols=ncols, nrows=nrows, figsize=(2.5*ncols, 2.5*nrows), sharey=True)
-        plt.subplots_adjust(bottom=0.25)
+        
+        self.fig.subplots_adjust(
+            left=0.1,
+            right=0.9,
+            top=0.8,
+            bottom=0.2,   # leave space for slider
+            hspace=0.4,   # vertical spacing between rows
+            wspace=0.3    # horizontal spacing between columns
+        )    
+           
+        plt.subplots_adjust(bottom=0.3)
 
         self.current_idx = 0
         self.render_func(self.current_idx, self.fig, self.axes)
