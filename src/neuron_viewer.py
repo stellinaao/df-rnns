@@ -3,20 +3,20 @@ from matplotlib.widgets import Slider
 
 
 class NeuronViewer:
-    def __init__(self, num_units, render_func, ymin, ymax, title="Neuron Viewer"):
+    def __init__(self, num_units, render_func, ymin=None, ymax=None, ncols=1, nrows=1, title="Neuron Viewer"):
         plt.close("all")
         self.num_units = num_units
         self.render_func = render_func
 
-        self.fig, self.ax = plt.subplots()
+        if ncols == 1 and nrows == 1: 
+            self.fig, self.axes = plt.subplots()
+            self.axes = [self.axes]
+        else:
+            self.fig, self.axes = plt.subplots(ncols=ncols, nrows=nrows, figsize=(2.5*ncols, 2.5*nrows), sharey=True)
         plt.subplots_adjust(bottom=0.25)
 
         self.current_idx = 0
-        self.render_func(self.current_idx, self.ax)
-        
-        self.ax.set_xlabel("Time (s)")
-        self.ax.set_ylabel("Firing Rate (Hz)")
-        self.ax.set_title(f"PETH, Unit 0")
+        self.render_func(self.current_idx, self.fig, self.axes)
 
         # slider axis
         slider_ax = plt.axes([0.2, 0.05, 0.6, 0.03])
@@ -28,11 +28,13 @@ class NeuronViewer:
             valinit=0,
             valstep=1
         )
-        padding = 0.05 * (ymax-ymin)
         
-        self.ymin = ymin - padding
-        self.ymax = ymax + padding
-        self.ax.set_ylim(self.ymin, self.ymax)
+        self.global_ylim = ymin is not None and ymax is not None
+        if self.global_ylim:
+            padding = 0.05 * (ymax-ymin)
+            self.ymin = ymin - padding
+            self.ymax = ymax + padding
+            self.axes[0].set_ylim(self.ymin, self.ymax)
 
         self.slider.on_changed(self.update)
         self.fig.canvas.mpl_connect('key_press_event', self.on_key)
@@ -42,9 +44,12 @@ class NeuronViewer:
 
     def update(self, val):
         idx = int(self.slider.val)
-        self.render_func(idx, self.ax)
-        self.ax.set_ylim(self.ymin, self.ymax)
-        self.ax.set_title(f"Unit {idx}")
+        self.render_func(idx, self.fig, self.axes)
+        if self.global_ylim:
+            self.axes[0].set_ylim(self.ymin, self.ymax)
+        else:
+            self.axes[0].relim()
+            self.axes[0].autoscale_view()
         self.fig.canvas.draw_idle()
 
     def on_key(self, event):
