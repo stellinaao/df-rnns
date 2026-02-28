@@ -227,13 +227,13 @@ def get_hmm_regressors(trial_data, bwidth):
 
 def get_video_svd_regressors(svds, vidtime, bwidth):
     ######
-    topdims = 3 # FOR NOW ONLY TOP 5 DIMS
+    topdims = 10 # FOR NOW ONLY TOP 10 DIMS
     ######
     svd_regs = []
     
     for i in range(topdims):
-        svdreg = ContinuousRegressor(f'svd_{i}', vidtime, svds.T[:,i], bwidth, tags='video', zscore=False) # zscore=False is a workaround for now
-        svdreg.add_basis_function('raised_cosine', 0.3, 0.2, n_funcs=10)
+        svdreg = ContinuousRegressor(f'svd_{i}', vidtime, svds.T[:,i], bwidth, tags='video', zscore=False)
+        svdreg.add_basis_function('raised_cosine', 0.5, 0.5, n_funcs=10)
         svd_regs.append(svdreg)
         if i==topdims-1:
             break
