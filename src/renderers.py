@@ -57,7 +57,8 @@ class PETHRenderer:
             
         self.times, _, _ = construct_timebins(pres, posts, binwidth_s)
 
-    def __call__(self, idx, ax):
+    def __call__(self, idx, fig, axes):
+        ax = axes[0]
         ax.clear()
         if self.mode == "grand":
             mean = self.all_means[idx]
@@ -81,109 +82,87 @@ class PETHRenderer:
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Firing Rate (Hz)")
         ax.set_title(f"Unit {idx}")
-
+        
 class KernelRenderer:
-    def __init__(self, model, dmat, bias):
+    def __init__(self, model=None, dmat=None, bias=None):
+        """
+        Parameters
+        ----------
+        mode : "grand" or "cond"
+            grand -> single mean/std
+            cond  -> separate a/b condition mean/std
+            
+        Example
+        ----------
+        >> renderer_grand = PETHRenderer(peth, pres, posts, binwidth_s, mode="grand")
+        >> viewer1 = NeuronViewer(num_units=peth.shape[0], render_func=renderer_grand, ymin=renderer_grand.ymin, ymax=renderer_grand.ymax)
 
+
+        >> renderer_cond = PETHRenderer(
+            peth_a=peth_l,
+            peth_b=peth_r,
+            mode="cond",
+            label_a="left",
+            label_b="right"
+        )
+        >> viewer2 = NeuronViewer(num_units=peth.shape[0], render_func=renderer_cond, ymin=renderer_cond.ymin, ymax=renderer_cond.ymax)
+        """
+        self.linkfunc = model.estimators_[0]._base_loss.link.inverse
+        
+        # get the unique tags from dmat
+        self.all_tags = []
+        for _, reg in dmat.regressors.items():
+            self.all_tags.extend(reg.tags)
+        self.all_tags = np.unique(self.all_tags)
+        self.all_tags = [t for t in self.all_tags if t not in ['task', 'interaction', 'hmm', 'behavior']]
+        
         self.model = model
         self.dmat = dmat
         self.bias = bias
-        self.linkfunc = model.estimators_[0]._base_loss.link.inverse
-        self.n_units = len(bias)
-
-        # --------------------
-        # collect tags
-        # --------------------
-        all_tags = []
-        for _, reg in self.dmat.regressors.items():
-            all_tags.extend(reg.tags)
-
-        all_tags = np.unique(all_tags)
-        all_tags = [t for t in all_tags if t not in ["task", "interaction"]]
-        self.tags = list(all_tags)
-
-        # --------------------
-        # cache kernels
-        # --------------------
+        
         self.cache = {}
-
-        global_min = np.inf
-        global_max = -np.inf
-
-        for tag in self.tags:
+        ymin = np.inf
+        ymax = -np.inf
+        
+        for tag in self.all_tags:
             self.cache[tag] = {}
             regs = self.dmat.select(tag=tag)
+            
+            for r, reg in regs.items():
+                k_all, t = reg.reconstruct_kernel()
+                self.cache[tag][f"{reg}_t"] = t
+                self.cache[tag][f"{reg}_k"] = np.zeros((len(bias), t.shape[0]))
+                
+                for idx in range(len(bias)):
+                    k = k_all[:, idx]
+                    k = self.linkfunc(k + bias[idx])
+                    
+                    max_curr = np.max(k)
+                    min_curr = np.min(k)
+                    
+                    if max_curr > ymax:
+                        ymax = max_curr
+                    if min_curr < ymin:
+                        ymin = min_curr
 
-            for _, reg in regs.items():
-                k_raw, t = reg.reconstruct_kernel()
-                k = self.linkfunc(k_raw + self.bias[np.newaxis, :])
+                    self.cache[tag][f"{reg}_k"][idx] = k
+        self.ymin = ymin
+        self.ymax = ymax
 
-                self.cache[tag][reg.name] = {
-                    "t": t,
-                    "k": k
-                }
-
-                global_min = min(global_min, np.min(k))
-                global_max = max(global_max, np.max(k))
-
-        self.ymin = global_min
-        self.ymax = global_max
-
-        self._axes = []
-        self._initialized = False   # 🔑 important flag
-
-    def __call__(self, idx, ax):
-
-        fig = ax.figure
-
-        # --------------------------------------------------
-        # FIRST CALL (during NeuronViewer init)
-        # Do NOT remove ax or it will crash viewer.
-        # --------------------------------------------------
-        if not self._initialized:
-            self._initialized = True
+    def __call__(self, idx, fig, axes):
+        for ax in axes: 
             ax.clear()
-            ax.text(
-                0.5, 0.5,
-                "Initializing Kernel Viewer...",
-                ha="center",
-                va="center"
-            )
-            return
+        
+        for i, tag in enumerate(self.all_tags):
+            regs = self.dmat.select(tag=tag)
+            for r, reg in regs.items():
+                axes[i].plot(self.cache[tag][f"{reg}_t"], self.cache[tag][f"{reg}_k"][idx], label=reg.name)
+            axes[i].axvline(x=0, linewidth=0.5, linestyle="--", color="#333333")
+            axes[i].set_title(tag)
+            if tag not in ['history', 'dlc', 'video']:
+                axes[i].legend()
+            axes[i].set_xlabel("Time (s)")
+        
+        axes[0].set_ylabel("Weight")
+        fig.suptitle(f"Unit {idx}")
 
-        # --------------------------------------------------
-        # Subsequent calls (safe to rebuild layout)
-        # --------------------------------------------------
-
-        # remove previous subplot axes
-        for a in self._axes:
-            a.remove()
-        self._axes = []
-
-        # remove the placeholder axis
-        ax.remove()
-
-        n_tags = len(self.tags)
-        gs = fig.add_gridspec(1, n_tags)
-
-        for i, tag in enumerate(self.tags):
-
-            subax = fig.add_subplot(gs[0, i])
-            self._axes.append(subax)
-
-            for regname, data in self.cache[tag].items():
-                t = data["t"]
-                k = data["k"][:, idx]
-                subax.plot(t, k, label=regname)
-
-            subax.set_title(tag)
-            subax.set_ylim(self.ymin, self.ymax)
-            subax.set_xlabel("Time (s)")
-
-            if i == 0:
-                subax.set_ylabel("Predicted rate")
-
-            if tag not in ["history", "dlc", "video"]:
-                subax.legend()
-
-        fig.tight_layout()
