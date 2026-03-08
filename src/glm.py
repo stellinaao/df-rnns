@@ -1,34 +1,17 @@
-# from one.api import ONE 
+"""
+glm.py
+
+Functions build the design matrix and
+add various regressor types.
+
+Author: Stellina X. Ao
+Created: 2026-02-25
+Last Modified: 2026-02-27
+Python Version: >= 3.10.4
+"""
+
 import numpy as np
-# from ibl_schema.wheel import aligned_wheel_traces
-# from .dlc import get_dlc_traces
-# from .video import *
 from DAMN.damn import *
-
-# one = ONE()
-
-# c2h = lambda c: np.tanh(5*c) / np.tanh(5) # hyperbolic tangent for stimulus intensity
-
-# def build_ibl_model(eid, master_alignment_event, pres, posts, bwidth, toy=False):
-
-#     # build_video_svd_data(eid) # this takes a while if not done...
-
-#     trials = one.load_object(eid, 'trials')
-#     master_alignment_times = trials[master_alignment_event]
-#     regressors = []
-#     if not toy:
-#         regressors.extend(get_task_regressors(eid, bwidth))
-#         # regressors.extend(get_wheel_regressors(eid, bwidth))
-#         regressors.extend(get_dlc_regressors(eid, bwidth))
-#         regressors.extend(get_video_svd_regressors(eid, bwidth))
-#     else:
-#         regressors.extend(get_task_regressors(eid, bwidth)) # just task regressors for toy model
-
-#     dmat = DesignMatrix(master_alignment_times,
-#                     pres, posts, bwidth)
-#     for reg in regressors:
-#         dmat.add_regressor(reg)
-#     return dmat
 
 def build_model(master_alignment_times, trial_data, svds, vidtime, pres, posts, bwidth, toy=False):
     regressors = []
@@ -44,13 +27,7 @@ def build_model(master_alignment_times, trial_data, svds, vidtime, pres, posts, 
         
     return dmat
 
-# def get_spike_history_regressors(eid, bwidth):
-#     raise NotImplementedError()
-
-# # TODO: auditory regressors?
-
 def get_task_regressors(trial_data, bwidth):
-    S = None #.1
     all_regs = []
 
     # choice regressors
@@ -99,7 +76,6 @@ def get_task_regressors(trial_data, bwidth):
     return all_regs
 
 def get_hmm_regressors(trial_data, bwidth):
-    S = None #.1
     all_regs = []
 
     # sigmoid regressors
@@ -119,112 +95,6 @@ def get_hmm_regressors(trial_data, bwidth):
         r.tags.add('hmm')
     return all_regs
 
-# def get_dlc_regressors(eid, bwidth):
-#     leftcam = one.load_object(eid, f'leftCamera', collection='alf')
-#     rightcam = one.load_object(eid, f'rightCamera', collection='alf')
-#     bodycam = one.load_object(eid, f'bodyCamera', collection='alf')
-#     licks = one.load_object(eid, 'licks', collection='alf')
-    
-#     # DLC traces
-#     leftcam_times, leftcam_traces, left_names, left_me, left_pupil = get_dlc_traces(leftcam, 'left')
-#     rightcam_times, rightcam_traces, right_names, right_me, right_pupil = get_dlc_traces(rightcam, 'right')
-#     bodycam_times, bodycam_traces, body_names, body_me = get_dlc_traces(bodycam, 'body')    
-
-#     dlcregs = []
-
-#     # left cam
-#     for i,name in enumerate(left_names):
-#         reg = ContinuousRegressor(name, leftcam_times, leftcam_traces[:,i], bwidth, tags='dlc')
-#         reg.add_basis_function('raised_cosine', .5, .3, n_funcs=5,)
-#         #reg.add_basis_function('gaussian_smooth', .5, .3)
-#         dlcregs.append(reg)
-#     reg = ContinuousRegressor('left_me', leftcam_times, left_me, bwidth, tags='dlc')
-#     reg.add_basis_function('gaussian_smooth', .5, .5,)
-#     dlcregs.append(reg)
-#     reg = ContinuousRegressor('left_pupil', leftcam_times, left_pupil, bwidth, tags='dlc')
-#     reg.add_basis_function('raised_cosine', .5, .3, n_funcs=5,)
-#     #reg.add_basis_function('gaussian_smooth', .5, .5,)
-#     dlcregs.append(reg)
-
-#     # right cam
-#     for i,name in enumerate(right_names):
-#         reg = ContinuousRegressor(name, rightcam_times, rightcam_traces[:,i], bwidth, tags='dlc')
-#         reg.add_basis_function('raised_cosine', .5, .3, n_funcs=5,)
-#         #reg.add_basis_function('gaussian_smooth', .5, .3)
-#         dlcregs.append(reg)
-#     reg = ContinuousRegressor('right_me', rightcam_times, right_me, bwidth, tags='dlc')
-#     reg.add_basis_function('gaussian_smooth', .5, .5,)
-#     dlcregs.append(reg)
-#     reg = ContinuousRegressor('right_pupil', rightcam_times, right_pupil, bwidth, tags='dlc')
-#     reg.add_basis_function('raised_cosine', .5, .3, n_funcs=5,)
-#     #reg.add_basis_function('gaussian_smooth', .5, .5,)
-#     dlcregs.append(reg)
-
-#     # body cam
-#     for i,name in enumerate(body_names):
-#         reg = ContinuousRegressor(name, bodycam_times, bodycam_traces[:,i], bwidth, tags='dlc')
-#         reg.add_basis_function('raised_cosine', .5, .3, n_funcs=5,)
-#         #reg.add_basis_function('gaussian_smooth', .5, .3)
-# def get_dlc_regressors(eid, bwidth):
-#     leftcam = one.load_object(eid, f'leftCamera', collection='alf')
-#     rightcam = one.load_object(eid, f'rightCamera', collection='alf')
-#     bodycam = one.load_object(eid, f'bodyCamera', collection='alf')
-#     licks = one.load_object(eid, 'licks', collection='alf')
-    
-#     # DLC traces
-#     leftcam_times, leftcam_traces, left_names, left_me, left_pupil = get_dlc_traces(leftcam, 'left')
-#     rightcam_times, rightcam_traces, right_names, right_me, right_pupil = get_dlc_traces(rightcam, 'right')
-#     bodycam_times, bodycam_traces, body_names, body_me = get_dlc_traces(bodycam, 'body')    
-
-#     dlcregs = []
-
-#     # left cam
-#     for i,name in enumerate(left_names):
-#         reg = ContinuousRegressor(name, leftcam_times, leftcam_traces[:,i], bwidth, tags='dlc')
-#         reg.add_basis_function('raised_cosine', .5, .3, n_funcs=5,)
-#         #reg.add_basis_function('gaussian_smooth', .5, .3)
-#         dlcregs.append(reg)
-#     reg = ContinuousRegressor('left_me', leftcam_times, left_me, bwidth, tags='dlc')
-#     reg.add_basis_function('gaussian_smooth', .5, .5,)
-#     dlcregs.append(reg)
-#     reg = ContinuousRegressor('left_pupil', leftcam_times, left_pupil, bwidth, tags='dlc')
-#     reg.add_basis_function('raised_cosine', .5, .3, n_funcs=5,)
-#     #reg.add_basis_function('gaussian_smooth', .5, .5,)
-#     dlcregs.append(reg)
-
-#     # right cam
-#     for i,name in enumerate(right_names):
-#         reg = ContinuousRegressor(name, rightcam_times, rightcam_traces[:,i], bwidth, tags='dlc')
-#         reg.add_basis_function('raised_cosine', .5, .3, n_funcs=5,)
-#         #reg.add_basis_function('gaussian_smooth', .5, .3)
-#         dlcregs.append(reg)
-#     reg = ContinuousRegressor('right_me', rightcam_times, right_me, bwidth, tags='dlc')
-#     reg.add_basis_function('gaussian_smooth', .5, .5,)
-#     dlcregs.append(reg)
-#     reg = ContinuousRegressor('right_pupil', rightcam_times, right_pupil, bwidth, tags='dlc')
-#     reg.add_basis_function('raised_cosine', .5, .3, n_funcs=5,)
-#     #reg.add_basis_function('gaussian_smooth', .5, .5,)
-#     dlcregs.append(reg)
-
-#     # body cam
-#     for i,name in enumerate(body_names):
-#         reg = ContinuousRegressor(name, bodycam_times, bodycam_traces[:,i], bwidth, tags='dlc')
-#         reg.add_basis_function('raised_cosine', .5, .3, n_funcs=5,)
-#         #reg.add_basis_function('gaussian_smooth', .5, .3)
-#         dlcregs.append(reg)
-#     reg = ContinuousRegressor('body_me', bodycam_times, body_me, bwidth, tags='dlc')
-#     reg.add_basis_function('gaussian_smooth', .5, .5,)
-#     dlcregs.append(reg)
-
-#     lickreg = EventRegressor('licks', licks.times, bwidth, tags=['licks','dlc'])
-#     lickreg.add_basis_function('raised_cosine', .3, .3, n_funcs=5,)
-#     #lickreg.add_basis_function('raised_cosine', .3, 0, n_funcs=5, )
-#     #lickreg.add_basis_function('raised_cosine', 0, .3, n_funcs=3, )
-#     dlcregs.append(lickreg)
-#     for r in dlcregs:
-#         r.tags.add('behavior')
-#     return dlcregs
-
 def get_video_svd_regressors(svds, vidtime, bwidth):
     ######
     topdims = 10 # FOR NOW ONLY TOP 10 DIMS
@@ -232,7 +102,7 @@ def get_video_svd_regressors(svds, vidtime, bwidth):
     svd_regs = []
     
     for i in range(topdims):
-        svdreg = ContinuousRegressor(f'svd_{i}', vidtime, svds.T[:,i], bwidth, tags='video', zscore=False)
+        svdreg = ContinuousRegressor(f'svd_{i}', vidtime, svds.T[:,i], bwidth, tags='video', zscore=True)
         svdreg.add_basis_function('raised_cosine', 0.5, 0.5, n_funcs=10)
         svd_regs.append(svdreg)
         if i==topdims-1:
@@ -241,6 +111,3 @@ def get_video_svd_regressors(svds, vidtime, bwidth):
         r.tags.add('behavior')
         
     return svd_regs
-
-# # TODO: add passive data if it's there
-

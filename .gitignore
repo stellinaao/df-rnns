@@ -3,4 +3,9 @@ figs/
 src/DAMN/
 *.npy
 *.npz
-notebooks/glm_dev_oo.ipynb
+archive/
+logs/
+*.pyc
+notebooks/checkpoints/
+*.pkl
+src/__pycache__
