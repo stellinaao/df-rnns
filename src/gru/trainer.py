@@ -10,6 +10,8 @@ from torch.utils.data import TensorDataset, DataLoader, Dataset
 from scipy.stats import pearsonr
 from .model import *
 import copy
+import optuna
+import os
 
 class Trainer:
     def __init__(self, model, data, **kwargs):
@@ -26,6 +28,9 @@ class Trainer:
         self.lr_decay     = kwargs.pop('lr_decay', 1.0)
         self.batch_size   = kwargs.pop('batch_size', 1)
         self.n_epochs     = kwargs.pop('n_epochs', 10)
+        self.patience     = kwargs.pop('patience', 1e-3)
+        
+        self.trial = kwargs.pop('trial', None)
         
         self.checkpoint_name = kwargs.pop('checkpoint_name', None)
         self.print_every     = kwargs.pop('print_every', 10)
@@ -77,6 +82,7 @@ class Trainer:
             'best_params': self.best_params
         }
         filename = 'checkpoints/%s_epoch_%d.pkl' % (self.checkpoint_name, self.epoch)
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         if self.verbose:
             print("saving checkpoint to '%s'" % filename)
         with open(filename, 'wb') as f:
@@ -132,7 +138,7 @@ class Trainer:
                 
                 h = h.detach() # prevent h from spilling over
                 
-                if i==0 or i==len(self.train_loader)-1:
+                if i==len(self.train_loader)-1:
                     # save loss first
                     self.model.eval()
                     with torch.no_grad():
@@ -153,6 +159,11 @@ class Trainer:
                     self.val_r2_history.append(val_r2)
                     self._save_checkpoint()
                     
+                    # optuna
+                    if self.trial is not None:
+                        self.trial.report(val_r2, step=epoch)
+                        if self.trial.should_prune():
+                            raise optuna.exceptions.TrialPruned()
                     if val_r2 > self.best_val_r2:
                         self.best_val_r2 = val_r2
                         self.best_params = copy.deepcopy(self.model.state_dict())

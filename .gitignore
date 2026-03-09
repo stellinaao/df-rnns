@@ -7,5 +7,8 @@ archive/
 logs/
 *.pyc
 notebooks/checkpoints/
+scripts/checkpoints/
 *.pkl
 src/__pycache__
+*.json
+*.pt

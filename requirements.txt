@@ -59,9 +59,6 @@ propcache==0.4.1
 protobuf==6.33.2
 py-cpuinfo==9.0.0
 pyparsing==3.2.5
-PyQt6==6.10.2
-PyQt6-Qt6==6.10.2
-PyQt6_sip==13.11.0
 pytorch-lightning==2.5.0.post0
 pytz==2025.2
 PyYAML==6.0.3
