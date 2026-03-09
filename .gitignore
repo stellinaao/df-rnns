@@ -4,3 +4,10 @@ src/DAMN/
 *.npy
 *.npz
 notebooks/glm_dev_oo.ipynb
+
+# Python
+__pycache__/
+*.pyc
+
+# Sweep results (regenerated per machine)
+results/
