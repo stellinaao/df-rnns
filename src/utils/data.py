@@ -3,7 +3,7 @@ import os
 import torch
 from sklearn.model_selection import train_test_split
 
-def get_data(learner="early", p_train=0.75, p_val=0.15, p_test=0.1, BWMS=10, s_per_trial=3):
+def get_dmat(learner="early"):
     if learner != "early" and learner != "late":
         return ValueError("valid arguments for learner are early and late")
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # src/utils -> df-rnns
@@ -11,18 +11,28 @@ def get_data(learner="early", p_train=0.75, p_val=0.15, p_test=0.1, BWMS=10, s_p
     dmat = np.load(var_path, allow_pickle=True)
     
     X, Y = dmat['X'], dmat['Y']
-    
-    # split data
-    X_trainval, X_test, Y_trainval, Y_test = train_test_split(X, Y, test_size=0.2, random_state=1)
-    X_train,    X_val,  Y_train,    Y_val  = train_test_split(X_trainval, Y_trainval, test_size=p_val/(p_val+p_train), random_state=1)
+    return X, Y
 
-    # reshape data
+def get_data(learner="early", p_train=0.75, p_val=0.15, p_test=0.1, BWMS=10, s_per_trial=3):
     b_per_sec   = int(1000/BWMS)
     b_per_trial = b_per_sec*s_per_trial
     
-    X_train, Y_train = reshape_XY(X_train, Y_train, b_per_trial)
-    X_val,   Y_val   = reshape_XY(X_val, Y_val, b_per_trial)
-    X_test,  Y_test  = reshape_XY(X_test, Y_test, b_per_trial)
+    X, Y = get_dmat(learner)
+    X, Y = reshape_XY(X, Y, b_per_trial)
+    
+    # split data
+    N = X.shape[0]
+    n_train = int(N*p_train)
+    n_val   = int(N*p_val)
+    
+    X_train = X[:n_train,:,:]
+    Y_train = Y[:n_train,:,:]
+
+    X_val   = X[n_train:n_train+n_val,:,:]
+    Y_val   = Y[n_train:n_train+n_val,:,:]
+
+    X_test  = X[n_train+n_val:,:,:]
+    Y_test  = Y[n_train+n_val:,:,:]
     
     # construct dict
     data = {
