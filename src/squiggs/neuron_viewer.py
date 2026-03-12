@@ -13,7 +13,7 @@ Python Version: >= 3.10.4
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, TextBox
 # from PyQt6.QtWidgets import (
-#     QApplication, QWidget, QVBoxLayout,
+#     QApplication, QWidget, QVBoxLayout
 #     QSlider, QLineEdit
 # )
 # from PyQt6.QtCore import Qt

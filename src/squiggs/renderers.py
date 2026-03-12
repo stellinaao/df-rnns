@@ -16,6 +16,10 @@ from scipy.stats import sem
 from DAMN.damn.alignment import construct_timebins
 
 class PETHRenderer:
+    '''
+    TODO:
+    - add rasters
+    '''
     def __init__(self, peth=None, pres=1, posts=2, binwidth_s=0.1, peth_a=None, peth_b=None, color="#261B49", color_a="#29723E", color_b="#9F5DBC", mode="grand", label_a="", label_b="", do_sem=True, relim=True):
         """
         Parameters
