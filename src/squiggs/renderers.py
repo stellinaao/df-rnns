@@ -1,8 +1,26 @@
+"""
+renderers.py
+
+Renderer objects handle a plotting functionality for 
+a single neuron and are designed to be used in conjunction
+with a NeuronViewer() object.
+
+Author: Stellina X. Ao
+Created: 2026-02-26
+Last Modified: 2026-02-27
+Python Version: >= 3.10.4
+"""
+
 import numpy as np
+from scipy.stats import sem
 from DAMN.damn.alignment import construct_timebins
 
 class PETHRenderer:
-    def __init__(self, peth=None, pres=1, posts=2, binwidth_s=0.1, peth_a=None, peth_b=None, mode="grand", label_a="", label_b=""):
+    '''
+    TODO:
+    - add rasters
+    '''
+    def __init__(self, peth=None, pres=1, posts=2, binwidth_s=0.1, peth_a=None, peth_b=None, color="#261B49", color_a="#29723E", color_b="#9F5DBC", mode="grand", label_a="", label_b="", do_sem=True, relim=True):
         """
         Parameters
         ----------
@@ -32,10 +50,12 @@ class PETHRenderer:
             self.peth = peth
             
             self.all_means = self.peth.mean(axis=1)
-            self.all_stds  = self.peth.std(axis=1)
+            self.all_stds  = sem(self.peth, axis=1) if do_sem else self.peth.std(axis=1)
             
-            self.ymin = np.min(self.all_means - self.all_stds)
-            self.ymax = np.max(self.all_means + self.all_stds)
+            self.ymin = np.min(self.all_means - self.all_stds, axis=1)
+            self.ymax = np.max(self.all_means + self.all_stds, axis=1)
+            
+            self.color = color
         
         elif self.mode=="cond":
             self.peth_a = peth_a
@@ -46,16 +66,28 @@ class PETHRenderer:
             
             self.all_means_a = self.peth_a.mean(axis=1)
             self.all_means_b = self.peth_b.mean(axis=1)
-            self.all_stds_a  = self.peth_a.std(axis=1)
-            self.all_stds_b  = self.peth_b.std(axis=1)
+            self.all_stds_a  = sem(self.peth_a, axis=1) if do_sem else self.peth_a.std(axis=1)
+            self.all_stds_b  = sem(self.peth_b, axis=1) if do_sem else self.peth_b.std(axis=1)
             
-            self.ymin = np.min((np.min(self.all_means_a - self.all_stds_a), np.min(self.all_means_b - self.all_stds_b)))
-            self.ymax = np.max((np.max(self.all_means_a + self.all_stds_a), np.max(self.all_means_b + self.all_stds_b)))
-        
+            self.ymin = np.min((np.min(self.all_means_a - self.all_stds_a, axis=1), np.min(self.all_means_b - self.all_stds_b, axis=1)), axis=0)
+            self.ymax = np.max((np.max(self.all_means_a + self.all_stds_a, axis=1), np.max(self.all_means_b + self.all_stds_b, axis=1)), axis=0)
+            
+            self.color_a = color_a
+            self.color_b = color_b
+         
         else:
             raise NotImplementedError("Valid modes are 'grand' and 'cond.'")
+        
+        self.relim = relim
+        if not self.relim:
+            self.ymin_g = np.min(self.ymin)
+            self.ymax_g = np.max(self.ymax)
+            padding = 0.05 * (self.ymax_g-self.ymin_g)
+            self.ymin_g -= padding
+            self.ymax_g += padding
             
         self.times, _, _ = construct_timebins(pres, posts, binwidth_s)
+        self.times = np.arange(peth.shape[2])
 
     def __call__(self, idx, fig, axes):
         ax = axes[0]
@@ -63,26 +95,61 @@ class PETHRenderer:
         if self.mode == "grand":
             mean = self.all_means[idx]
             std  = self.all_stds[idx]
-            ax.plot(self.times, mean, color="#261B49")
-            ax.fill_between(self.times, mean-std, mean+std, alpha=0.3, color="#5C5EA1")
+            print("BEAUTEOUS")
+            ax.plot(self.times, mean, color=self.color)
+            ax.fill_between(self.times, mean-std, mean+std, alpha=0.3, color=self.color)
+            
+            ax.axvline(x=0, color="#666666", linewidth=0.5, linestyle="--")
         elif self.mode == "cond":
             mean_a = self.all_means_a[idx]
             std_a  = self.all_stds_a[idx]
             mean_b = self.all_means_b[idx]
             std_b  = self.all_stds_b[idx]
 
-            ax.plot(self.times, mean_a, color="#29723E", label=self.label_a)
-            ax.plot(self.times, mean_b, color="#672982", label=self.label_b)
-            ax.fill_between(self.times, mean_a-std_a, mean_a+std_a, alpha=0.3, color="#6FCD77")
-            ax.fill_between(self.times, mean_b-std_b, mean_b+std_b, alpha=0.3, color="#9F5DBCFF")
+            ax.plot(self.times, mean_a, color=self.color_a, label=self.label_a)
+            ax.plot(self.times, mean_b, color=self.color_b, label=self.label_b)
+            ax.fill_between(self.times, mean_a-std_a, mean_a+std_a, alpha=0.3, color=self.color_a)
+            ax.fill_between(self.times, mean_b-std_b, mean_b+std_b, alpha=0.3, color=self.color_b)
+            
+            ax.axvline(x=0, color="#666666", linewidth=0.5, linestyle="--")
             ax.legend()
         else:
             raise ValueError("Mode must be 'grand' or 'cond'.")
 
+
+        if self.relim:
+            padding = 0.05*(self.ymax[idx]-self.ymin[idx])
+            ax.set_ylim(self.ymin[idx]-padding, self.ymax[idx]+padding)
+        else:
+            ax.set_ylim(self.ymin_g, self.ymax_g)
+            
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Firing Rate (Hz)")
         ax.set_title(f"Unit {idx}")
         
+class FitRenderer:
+    def __init__(self, model=None, x=None, y=None):
+        from scipy.stats import pearsonr as r
+        self.model = model
+        self.x = x
+        self.y = y
+        self.yhat = self.model(self.x).detach().numpy()
+        self.rsquared = r(self.y, self.yhat, axis=0).statistic**2
+        
+        self.cids = self.model.cids
+    
+    def __call__(self, idx, fig, axes):
+        for ax in axes: 
+            ax.clear()
+            
+        ax = axes[0]
+        ax.plot(self.y[:,self.cids][:,idx], color="#666666", alpha=0.5, label="observed")
+        ax.plot(self.yhat[:,idx], color="#5C2392", alpha=0.5, label="predicted")
+        
+        # ax.legend()
+        ax.set_xlabel("Trials")
+        ax.set_ylabel("Spike Counts")
+        ax.set_title(f"$r^2$={self.rsquared[idx]:.3f}")
 class KernelRenderer:
     def __init__(self, model=None, dmat=None, bias=None):
         """

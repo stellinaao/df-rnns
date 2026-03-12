@@ -1,5 +1,23 @@
+"""
+neuron_viewer.py
+
+The neuron viewer handles the logic for generating
+sliding plots across units.
+
+Author: Stellina X. Ao
+Created: 2026-02-26
+Last Modified: 2026-02-27
+Python Version: >= 3.10.4
+"""
+
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Slider, TextBox
+# from PyQt6.QtWidgets import (
+#     QApplication, QWidget, QVBoxLayout
+#     QSlider, QLineEdit
+# )
+# from PyQt6.QtCore import Qt
+# from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 
 
 class NeuronViewer:
@@ -9,13 +27,15 @@ class NeuronViewer:
         self.render_func = render_func
 
         if ncols == 1 and nrows == 1: 
-            self.fig, self.axes = plt.subplots()
+            self.fig, self.axes = plt.subplots(figsize=(2,2))
             self.axes = [self.axes]
         else:
-            self.fig, self.axes = plt.subplots(ncols=ncols, nrows=nrows, figsize=(2.5*ncols, 2.5*nrows), sharey=True)
+            self.fig, self.axes = plt.subplots(ncols=ncols, nrows=nrows, 
+                                               figsize=(2.5*ncols, 2.5*nrows), 
+                                               sharey=True)
         
         self.fig.subplots_adjust(
-            left=0.1,
+            left=0.2,
             right=0.9,
             top=0.8,
             bottom=0.2,   # leave space for slider
@@ -39,27 +59,28 @@ class NeuronViewer:
             valstep=1
         )
         
-        self.global_ylim = ymin is not None and ymax is not None
-        if self.global_ylim:
-            padding = 0.05 * (ymax-ymin)
-            self.ymin = ymin - padding
-            self.ymax = ymax + padding
-            self.axes[0].set_ylim(self.ymin, self.ymax)
+        # self.global_ylim = ymin is not None and ymax is not None
+        # if self.global_ylim:
+        #     padding = 0.05 * (ymax-ymin)
+        #     self.ymin = ymin - padding
+        #     self.ymax = ymax + padding
+        #     self.axes[0].set_ylim(self.ymin, self.ymax)
 
         self.slider.on_changed(self.update)
         self.fig.canvas.mpl_connect('key_press_event', self.on_key)
 
-        self.slider.on_changed(self.update)
-        self.fig.canvas.mpl_connect("key_press_event", self.on_key)
-
     def update(self, val):
         idx = int(self.slider.val)
         self.render_func(idx, self.fig, self.axes)
-        if self.global_ylim:
-            self.axes[0].set_ylim(self.ymin, self.ymax)
-        else:
-            self.axes[0].relim()
-            self.axes[0].autoscale_view()
+        # if self.global_ylim:
+        #     self.axes[0].set_ylim(self.ymin, self.ymax)
+        # else:
+        #     ymin = 
+        #     ymax = 
+        #     padding = 0.05 * (ymax-ymin)
+        #     self.axes[0].set_ylim(ymin-padding, ymax+padding)
+        #     # self.axes[0].relim()
+        #     # self.axes[0].autoscale_view()
         self.fig.canvas.draw_idle()
 
     def on_key(self, event):
@@ -72,7 +93,100 @@ class NeuronViewer:
         elif event.key == 'left':
             idx = self.slider.val - step
             self.slider.set_val(idx)
-            
+'''
+class NeuronViewerQT(QWidget):
+    def __init__(self, num_units, render_func, 
+                 ymin=None, ymax=None, 
+                 ncols=1, nrows=1, 
+                 title="Neuron Viewer"):
+       
+        super().__init__()
+         
+        # plt.close("all")
+        
+        self.num_units = num_units
+        self.render_func = render_func
+        self.use_global_ylim = ymin is not None and ymax is not None
+        
+        self.setWindowTitle(title)
+
+        # figure setup
+        if ncols == 1 and nrows == 1: 
+            self.fig, self.axes = plt.subplots()
+            self.axes = [self.axes]
+        else:
+            self.fig, self.axes = plt.subplots(
+                ncols=ncols, nrows=nrows, 
+                figsize=(2.5*ncols, 2.5*nrows), 
+                sharey=True
+            )
+        
+        self.fig.subplots_adjust(
+            left=0.1,
+            right=0.9,
+            top=0.9,
+            bottom=0.15,   
+            hspace=0.4,  
+            wspace=0.3   
+        )    
+        
+        if self.use_global_ylim:
+            padding = 0.05 * (ymax-ymin)
+            self.ymin = ymin - padding
+            self.ymax = ymax + padding
+            # self.axes[0].set_ylim(self.ymin, self.ymax)
+           
+        # plt.subplots_adjust(bottom=0.3)
+        
+        # matplotlib pyqt6 magic
+        self.canvas = FigureCanvas(self.fig)
+        
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.canvas)
+
+        # search box
+        self.input_box = QLineEdit()
+        self.input_box.setPlaceholderText("Show me the units!!!")
+        self.input_box.returnPressed.connect(self.jump_to_index)
+        layout.addWidget(self.input_box)
+        
+
+        # slider
+        self.slider = QSlider(Qt.Orientation.Horizontal)
+        self.slider.setMinimum(0)
+        self.slider.setMaximum(self.num_units-1)
+        self.slider.setValue(0)
+        self.slider.valueChanged.connect(self.update)
+        layout.addWidget(self.slider)
+        
+        self.slider.setTickInterval(5)
+        self.slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+       
+        # init render
+        self.current_idx = 0
+        self.render_func(self.current_idx, self.fig, self.axes)
+
+    def update(self, idx):
+        self.current_idx = idx
+        
+        self.render_func(self.current_idx, self.fig, self.axes)
+        
+        if self.use_global_ylim:
+            self.axes[0].set_ylim(self.ymin, self.ymax)
+        else:
+            self.axes[0].relim()
+            self.axes[0].autoscale_view()
+        self.canvas.draw_idle()
+        
+    def jump_to_index(self):
+        try:
+            idx = int(self.input_box.text())
+            self.current_idx = max(0, min(self.num_units-1, idx))
+            self.slider.setValue(self.current_idx)
+            self.input_box.clear()
+        except ValueError:
+            self.input_box.clear()
+'''   
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
