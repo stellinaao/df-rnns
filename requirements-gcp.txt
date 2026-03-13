@@ -21,6 +21,9 @@ ipykernel
 
 # Neural data dependency (used by create_neural_targets_from_psth)
 spks @ git+https://github.com/spkware/spks.git
+natsort
+tqdm
+h5py
 
 # This repo itself (installs src/ as a package)
 -e .

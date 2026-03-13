@@ -20,7 +20,7 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 
 def _metric_label(task_type: str) -> str:
-    return "Accuracy" if task_type == "behavior" else "Variance Explained (R²)"
+    return "Accuracy" if task_type == "behavior" else "Pearson r"
 
 
 def _deserialize_hist(series: pd.Series) -> List[List[float]]:
@@ -89,6 +89,8 @@ def plot_training_curves_comparison(
     df: pd.DataFrame,
     task_type: str = "behavior",
     figsize: Tuple[int, int] = (14, 5),
+    loss_log_scale: Optional[bool] = None,
+    skip_warmup_epochs: int = 0,
 ) -> None:
     """Overlay loss and metric training curves for the best run of each architecture."""
     sub = _filter_df(df, task_type=task_type)
@@ -99,6 +101,7 @@ def plot_training_curves_comparison(
     fig, (ax_loss, ax_metric) = plt.subplots(1, 2, figsize=figsize)
     model_types = sorted(sub["model_type"].unique())
     colors = plt.cm.tab10(np.linspace(0, 0.5, len(model_types)))
+    use_log_loss = (task_type == "neural") if loss_log_scale is None else loss_log_scale
 
     for mt, color in zip(model_types, colors):
         mt_df = sub[sub["model_type"] == mt]
@@ -108,12 +111,27 @@ def plot_training_curves_comparison(
         loss_hist = json.loads(best_row["loss_hist"]) if isinstance(best_row["loss_hist"], str) else best_row["loss_hist"]
         metric_hist = json.loads(best_row["metric_hist"]) if isinstance(best_row["metric_hist"], str) else best_row["metric_hist"]
 
-        ax_loss.plot(loss_hist, label=mt, color=color, alpha=0.85)
-        ax_metric.plot(metric_hist, label=mt, color=color, alpha=0.85)
+        start = max(0, int(skip_warmup_epochs))
+        epochs = np.arange(start, len(loss_hist))
+        if len(epochs) == 0:
+            continue
+
+        loss_arr = np.asarray(loss_hist[start:], dtype=float)
+        metric_arr = np.asarray(metric_hist[start:], dtype=float)
+
+        if use_log_loss:
+            # Avoid invalid log scaling from zero/negative values.
+            eps = np.finfo(float).tiny
+            loss_arr = np.clip(loss_arr, eps, None)
+
+        ax_loss.plot(epochs, loss_arr, label=mt, color=color, alpha=0.85)
+        ax_metric.plot(epochs, metric_arr, label=mt, color=color, alpha=0.85)
 
     ax_loss.set_xlabel("Epoch", fontsize=12)
     ax_loss.set_ylabel("Loss", fontsize=12)
     ax_loss.set_title("Loss Curves (Best Run per Architecture)", fontsize=13)
+    if use_log_loss:
+        ax_loss.set_yscale("log")
     ax_loss.legend(frameon=False)
     for spine in ["top", "right"]:
         ax_loss.spines[spine].set_visible(False)
@@ -207,26 +225,41 @@ def plot_hp_importance(
     for idx, hp in enumerate(hp_cols):
         r, c = divmod(idx, n_cols)
         ax = axes[r][c]
+        hp_series = sub[hp]
+        hp_numeric_all = pd.to_numeric(hp_series, errors="coerce")
+        is_numeric_hp = bool(hp_numeric_all.notna().all())
+
+        # Robust categorical labeling for mixed-type columns (e.g., None + strings).
+        cat_map = None
+        if not is_numeric_hp:
+            def _cat_label(v):
+                if pd.isna(v):
+                    return "<NA>"
+                return str(v)
+
+            categories = sorted({_cat_label(v) for v in hp_series})
+            cat_map = {label: i for i, label in enumerate(categories)}
 
         for mt in model_types:
             mt_df = sub[sub["model_type"] == mt]
-            x_vals = mt_df[hp].values
             y_vals = mt_df["best_metric"].values
+            x_vals_series = mt_df[hp]
 
-            try:
-                x_numeric = x_vals.astype(float)
+            if is_numeric_hp:
+                x_numeric = pd.to_numeric(x_vals_series, errors="coerce").to_numpy(dtype=float)
                 jitter = np.random.default_rng(42).uniform(-0.05, 0.05, size=len(x_numeric))
                 ax.scatter(x_numeric + jitter, y_vals, alpha=0.6, s=30,
                            color=color_map[mt], label=mt, edgecolors="none")
-            except (ValueError, TypeError):
-                x_cats = sorted(set(x_vals.astype(str)))
-                cat_map = {v: i for i, v in enumerate(x_cats)}
-                x_pos = np.array([cat_map[str(v)] for v in x_vals])
+            else:
+                x_labels = x_vals_series.map(lambda v: "<NA>" if pd.isna(v) else str(v)).tolist()
+                x_pos = np.array([cat_map[v] for v in x_labels], dtype=float)
                 jitter = np.random.default_rng(42).uniform(-0.1, 0.1, size=len(x_pos))
                 ax.scatter(x_pos + jitter, y_vals, alpha=0.6, s=30,
                            color=color_map[mt], label=mt, edgecolors="none")
-                ax.set_xticks(list(cat_map.values()))
-                ax.set_xticklabels(list(cat_map.keys()), fontsize=9)
+
+        if not is_numeric_hp and cat_map is not None:
+            ax.set_xticks(list(cat_map.values()))
+            ax.set_xticklabels(list(cat_map.keys()), fontsize=9)
 
         ax.set_xlabel(hp, fontsize=11)
         ax.set_ylabel(_metric_label(task_type), fontsize=10)
@@ -332,12 +365,14 @@ def plot_sweep_parallel_coords(
 
     axes_data = {}
     for col in hp_cols:
-        try:
-            vals = sub[col].astype(float)
-        except (ValueError, TypeError):
-            categories = sorted(sub[col].astype(str).unique())
+        numeric_vals = pd.to_numeric(sub[col], errors="coerce")
+        if numeric_vals.notna().all():
+            vals = numeric_vals.astype(float)
+        else:
+            labels = sub[col].map(lambda v: "<NA>" if pd.isna(v) else str(v))
+            categories = sorted(set(labels.tolist()))
             cat_map = {v: i for i, v in enumerate(categories)}
-            vals = sub[col].astype(str).map(cat_map).astype(float)
+            vals = labels.map(cat_map).astype(float)
             axes_data[col] = {"categories": categories}
         vmin, vmax = vals.min(), vals.max()
         if vmax == vmin:

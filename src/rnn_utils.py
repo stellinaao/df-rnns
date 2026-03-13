@@ -28,6 +28,7 @@ visualize_neural_predictions    – heatmap + trial-averaged prediction diagnost
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import time
@@ -40,6 +41,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from matplotlib.lines import Line2D
+from scipy.stats import pearsonr
 
 
 # ─── Task ────────────────────────────────────────────────────────────────────
@@ -173,6 +175,22 @@ def moving_average(x, k: int = 25) -> np.ndarray:
 
 # Models:
 
+def _set_lstm_forget_bias(lstm: nn.LSTM, forget_bias_init: float) -> None:
+    """Set LSTM forget-gate bias to a controlled initial value.
+
+    PyTorch packs gate biases in [input, forget, cell, output] order.
+    We set the forget chunk in bias_ih to ``forget_bias_init`` and reset the
+    matching chunk in bias_hh to 0 so the total starts at the requested value.
+    """
+    hidden = lstm.hidden_size
+    for name, param in lstm.named_parameters():
+        if "bias_ih_l" in name:
+            with torch.no_grad():
+                param[hidden: 2 * hidden].fill_(float(forget_bias_init))
+        elif "bias_hh_l" in name:
+            with torch.no_grad():
+                param[hidden: 2 * hidden].fill_(0.0)
+
 class VanillaRateRNN(nn.Module):
     """Vanilla rate RNN."""
 
@@ -283,6 +301,7 @@ class LSTMBehavior(nn.Module):
     num_layers  : stacked LSTM depth
     output_size : number of classes (2 for left/right)
     dropout     : dropout between LSTM layers (active only when num_layers > 1)
+    forget_bias_init : initial total bias for forget gates (helps memory retention)
     """
 
     def __init__(
@@ -292,10 +311,12 @@ class LSTMBehavior(nn.Module):
         num_layers: int = 1,
         output_size: int = 2,
         dropout: float = 0.0,
+        forget_bias_init: float = 1.0,
     ):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
+        self.forget_bias_init = forget_bias_init
         self.lstm = nn.LSTM(
             input_size,
             hidden_size,
@@ -303,6 +324,7 @@ class LSTMBehavior(nn.Module):
             batch_first=True,
             dropout=dropout if num_layers > 1 else 0.0,
         )
+        _set_lstm_forget_bias(self.lstm, forget_bias_init)
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x: torch.Tensor, state=None):
@@ -332,6 +354,8 @@ class LSTMNeural(nn.Module):
     num_layers  : stacked LSTM depth
     output_size : neural target dimension (n_units * n_timebins)
     dropout     : dropout between LSTM layers (active only when num_layers > 1)
+    output_dropout : dropout applied to LSTM output before the linear head
+    forget_bias_init : initial total bias for forget gates (helps memory retention)
     """
 
     def __init__(
@@ -341,10 +365,13 @@ class LSTMNeural(nn.Module):
         num_layers: int = 1,
         output_size: int = 256,
         dropout: float = 0.0,
+        output_dropout: float = 0.0,
+        forget_bias_init: float = 1.0,
     ):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
+        self.forget_bias_init = forget_bias_init
         self.lstm = nn.LSTM(
             input_size,
             hidden_size,
@@ -352,6 +379,8 @@ class LSTMNeural(nn.Module):
             batch_first=True,
             dropout=dropout if num_layers > 1 else 0.0,
         )
+        _set_lstm_forget_bias(self.lstm, forget_bias_init)
+        self.out_drop = nn.Dropout(output_dropout) if output_dropout > 0 else nn.Identity()
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x: torch.Tensor, state=None):
@@ -367,7 +396,7 @@ class LSTMNeural(nn.Module):
         state : (h, c) for the last time step
         """
         out, state = self.lstm(x, state)
-        y_hat = self.fc(out)
+        y_hat = self.fc(self.out_drop(out))
         return y_hat, state
 
 
@@ -545,12 +574,50 @@ def _build_scheduler(
     raise ValueError(f"Unknown scheduler: {scheduler_name}")
 
 
+def _pearson_r_metric(y_true: torch.Tensor, y_pred: torch.Tensor) -> float:
+    """Compute Pearson correlation on flattened tensors."""
+    y_true_np = y_true.detach().reshape(-1).float().cpu().numpy()
+    y_pred_np = y_pred.detach().reshape(-1).float().cpu().numpy()
+    if y_true_np.size < 2 or y_pred_np.size < 2:
+        return float("nan")
+    if np.std(y_true_np) <= 1e-12 or np.std(y_pred_np) <= 1e-12:
+        return float("nan")
+    return float(pearsonr(y_true_np, y_pred_np).statistic)
+
+
+@torch.no_grad()
+def check_r2(model: nn.Module, data_loader, chunk_size: int = 100) -> float:
+    """Compute Pearson-r metric on a data loader, flattened over all batches."""
+    del chunk_size  # Reserved for API compatibility.
+    model.eval()
+
+    y_eval = []
+    y_pred = []
+    device = next(model.parameters()).device
+
+    for x_batch, y_batch in data_loader:
+        x_batch = x_batch.to(device)
+        y_batch = y_batch.to(device)
+        out, _ = model(x_batch, None)
+        y_eval.append(y_batch.cpu())
+        y_pred.append(out.cpu())
+
+    if not y_eval or not y_pred:
+        return float("nan")
+    y_eval_cat = torch.cat(y_eval, dim=0)
+    y_pred_cat = torch.cat(y_pred, dim=0)
+    return _pearson_r_metric(y_eval_cat, y_pred_cat)
+
+
 def run_training(
     model: nn.Module,
     X_seq: torch.Tensor,
     Y_seq: torch.Tensor,
+    X_val: Optional[torch.Tensor] = None,
+    Y_val: Optional[torch.Tensor] = None,
     task_type: str = "behavior",
     epochs: int = 1000,
+    batch_size: Optional[int] = None,
     lr: float = 1e-3,
     grad_clip: float = 1.0,
     weight_decay: float = 0.0,
@@ -558,6 +625,9 @@ def run_training(
     scheduler_name: Optional[str] = None,
     patience: Optional[int] = None,
     activity_reg: float = 0.0,
+    input_noise_std: float = 0.0,
+    gradient_noise_std: float = 0.0,
+    normalize_inputs: bool = False,
     print_every: int = 200,
     device: Optional[torch.device] = None,
 ) -> Dict[str, Any]:
@@ -575,6 +645,9 @@ def run_training(
         ``"behavior"`` (cross-entropy + accuracy) or ``"neural"`` (MSE + variance explained).
     epochs : int
         Maximum number of training epochs.
+    batch_size : int or None
+        Number of trials per optimization step (contiguous chunks along time).
+        ``None`` or values >= sequence length use full-sequence updates.
     lr : float
         Learning rate.
     grad_clip : float
@@ -589,6 +662,12 @@ def run_training(
         Early-stopping patience (epochs without improvement). ``None`` disables early stopping.
     activity_reg : float
         L2 penalty on hidden-state activations (useful for vanilla RNNs).
+    input_noise_std : float
+        Std of Gaussian noise added to inputs during training (regularization).
+    gradient_noise_std : float
+        Std of Gaussian noise injected into gradients each step (implicit regularization).
+    normalize_inputs : bool
+        If True, z-score inputs using training-set statistics before training.
     print_every : int
         How often to print progress.
     device : torch.device or None
@@ -598,79 +677,152 @@ def run_training(
     -------
     dict with keys:
         loss_hist, metric_hist, best_metric, best_epoch, final_metric, final_loss, elapsed_sec
+        plus train/val histories and metric source metadata.
     """
     clear_training_state(model)
     model.train()
 
+    if normalize_inputs:
+        x_mean = X_seq.mean(dim=(0, 1), keepdim=True)
+        x_std = X_seq.std(dim=(0, 1), keepdim=True).clamp(min=1e-8)
+        X_seq = (X_seq - x_mean) / x_std
+        if X_val is not None:
+            X_val = (X_val - x_mean) / x_std
+
     optimizer = _build_optimizer(model, optimizer_name, lr, weight_decay)
     scheduler = _build_scheduler(optimizer, scheduler_name, epochs)
 
-    loss_hist: List[float] = []
-    metric_hist: List[float] = []
+    train_loss_hist: List[float] = []
+    train_metric_hist: List[float] = []
+    val_loss_hist: List[float] = []
+    val_metric_hist: List[float] = []
+    has_val = X_val is not None and Y_val is not None
     best_metric = float("-inf")
     best_epoch = 0
+    best_state_dict = None
     epochs_without_improvement = 0
 
     t0 = time.time()
 
+    n_sequences = int(X_seq.shape[0])
+    if batch_size is None or batch_size <= 0 or batch_size >= n_sequences:
+        chunk_size = n_sequences
+    else:
+        chunk_size = int(batch_size)
+
     for ep in range(1, epochs + 1):
-        output, hidden_states = model(X_seq)
+        model.train()
+        order = torch.randperm(n_sequences, device=X_seq.device)
+        for start in range(0, n_sequences, chunk_size):
+            stop = min(start + chunk_size, n_sequences)
+            idx = order[start:stop]
+            x_batch = X_seq[idx, :, :]
+            y_batch = Y_seq[idx, :, ...]
 
-        if task_type == "behavior":
-            loss = F.cross_entropy(output.reshape(-1, 2), Y_seq.reshape(-1))
-        else:
-            loss = F.mse_loss(output, Y_seq)
+            if input_noise_std > 0.0:
+                x_batch = x_batch + torch.randn_like(x_batch) * input_noise_std
 
-        if activity_reg > 0.0 and hidden_states is not None:
-            loss = loss + activity_reg * torch.mean(hidden_states ** 2)
+            output_batch, hidden_states = model(x_batch)
+            if task_type == "behavior":
+                pred_loss = F.cross_entropy(output_batch.reshape(-1, 2), y_batch.reshape(-1))
+            else:
+                pred_loss = F.mse_loss(output_batch, y_batch)
 
-        optimizer.zero_grad()
-        loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-        optimizer.step()
+            loss = pred_loss
+            if activity_reg > 0.0 and hidden_states is not None:
+                loss = loss + activity_reg * torch.mean(hidden_states ** 2)
+
+            optimizer.zero_grad()
+            loss.backward()
+            if gradient_noise_std > 0.0:
+                for p in model.parameters():
+                    if p.grad is not None:
+                        p.grad.add_(torch.randn_like(p.grad) * gradient_noise_std)
+            nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+            optimizer.step()
+
+        model.eval()
+        with torch.no_grad():
+            output_train, _ = model(X_seq)
+            if task_type == "behavior":
+                train_pred_loss = F.cross_entropy(output_train.reshape(-1, 2), Y_seq.reshape(-1))
+                train_metric = (output_train.argmax(dim=-1) == Y_seq).float().mean().item()
+            else:
+                train_pred_loss = F.mse_loss(output_train, Y_seq)
+                train_metric = _pearson_r_metric(Y_seq, output_train)
+
+            if has_val:
+                output_val, _ = model(X_val)
+                if task_type == "behavior":
+                    val_pred_loss = F.cross_entropy(output_val.reshape(-1, 2), Y_val.reshape(-1))
+                    val_metric = (output_val.argmax(dim=-1) == Y_val).float().mean().item()
+                else:
+                    val_pred_loss = F.mse_loss(output_val, Y_val)
+                    val_metric = _pearson_r_metric(Y_val, output_val)
+            else:
+                val_pred_loss = None
+                val_metric = None
 
         if scheduler is not None:
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                scheduler.step(loss.item())
+                ref_loss = float(val_pred_loss.item()) if has_val else float(train_pred_loss.item())
+                scheduler.step(ref_loss)
             else:
                 scheduler.step()
 
-        with torch.no_grad():
-            if task_type == "behavior":
-                metric = (output.argmax(dim=-1) == Y_seq).float().mean().item()
-            else:
-                mse = loss.item()
-                var = torch.var(Y_seq).item()
-                metric = (1.0 - mse / var) if var > 1e-8 else float("nan")
+        train_loss_hist.append(float(train_pred_loss.item()))
+        train_metric_hist.append(float(train_metric))
+        if has_val:
+            val_loss_hist.append(float(val_pred_loss.item()))
+            val_metric_hist.append(float(val_metric))
 
-        loss_hist.append(float(loss.item()))
-        metric_hist.append(float(metric))
+        metric_for_selection = float(val_metric) if has_val else float(train_metric)
 
-        if not math.isnan(metric) and metric > best_metric:
-            best_metric = metric
+        if not math.isnan(metric_for_selection) and metric_for_selection > best_metric:
+            best_metric = metric_for_selection
             best_epoch = ep
+            best_state_dict = copy.deepcopy(model.state_dict())
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
 
         if ep % print_every == 0:
-            metric_name = "acc" if task_type == "behavior" else "var_explained"
-            print(f"epoch {ep:4d} | loss {loss.item():.6f} | {metric_name} {metric:.4f}")
+            metric_name = "acc" if task_type == "behavior" else "pearson_r"
+            if has_val:
+                print(
+                    f"epoch {ep:4d} | train_loss {train_pred_loss.item():.6f} | train_{metric_name} {train_metric:.4f} "
+                    f"| val_loss {val_pred_loss.item():.6f} | val_{metric_name} {val_metric:.4f}"
+                )
+            else:
+                print(f"epoch {ep:4d} | train_loss {train_pred_loss.item():.6f} | train_{metric_name} {train_metric:.4f}")
 
         if patience is not None and epochs_without_improvement >= patience:
             print(f"Early stopping at epoch {ep} (no improvement for {patience} epochs)")
             break
 
     elapsed = time.time() - t0
+    if best_state_dict is not None:
+        model.load_state_dict(best_state_dict)
     setattr(model, _RNN_UTILS_TRAINED_FLAG, True)
+    primary_loss_hist = val_loss_hist if has_val else train_loss_hist
+    primary_metric_hist = val_metric_hist if has_val else train_metric_hist
 
     return {
-        "loss_hist": loss_hist,
-        "metric_hist": metric_hist,
+        "loss_hist": primary_loss_hist,
+        "metric_hist": primary_metric_hist,
+        "train_loss_hist": train_loss_hist,
+        "train_metric_hist": train_metric_hist,
+        "val_loss_hist": val_loss_hist,
+        "val_metric_hist": val_metric_hist,
+        "metric_source": "val" if has_val else "train",
         "best_metric": float(best_metric),
         "best_epoch": int(best_epoch),
-        "final_metric": float(metric_hist[-1]) if metric_hist else float("nan"),
-        "final_loss": float(loss_hist[-1]) if loss_hist else float("nan"),
+        "final_metric": float(primary_metric_hist[-1]) if primary_metric_hist else float("nan"),
+        "final_loss": float(primary_loss_hist[-1]) if primary_loss_hist else float("nan"),
+        "final_train_metric": float(train_metric_hist[-1]) if train_metric_hist else float("nan"),
+        "final_train_loss": float(train_loss_hist[-1]) if train_loss_hist else float("nan"),
+        "final_val_metric": float(val_metric_hist[-1]) if val_metric_hist else float("nan"),
+        "final_val_loss": float(val_loss_hist[-1]) if val_loss_hist else float("nan"),
         "elapsed_sec": round(elapsed, 2),
     }
 
@@ -714,7 +866,29 @@ def create_neural_targets_from_psth(
     meta : dict
         Metadata per key: n_units, n_trials, n_timebins, probe, area, n_units_excluded.
     """
-    from spks.event_aligned import compute_firing_rate
+    try:
+        from spks.event_aligned import compute_firing_rate  # older spks API
+    except ImportError:
+        from spks.event_aligned import compute_spike_count
+
+        def compute_firing_rate(event_times, spike_times, pre_seconds, post_seconds, binwidth_ms, kernel=None):
+            """Compatibility wrapper for newer spks releases.
+
+            Newer ``spks`` exposes ``compute_spike_count`` (counts/bin) instead of
+            ``compute_firing_rate``. Convert counts to Hz to preserve existing
+            downstream assumptions (including min_rate_hz filtering).
+            """
+            psth_counts, timebin_edges, event_index = compute_spike_count(
+                event_times,
+                spike_times,
+                pre_seconds,
+                post_seconds,
+                binwidth_ms=binwidth_ms,
+                kernel=kernel,
+            )
+            binwidth_s = float(binwidth_ms) / 1000.0
+            psth_hz = psth_counts / binwidth_s
+            return psth_hz, timebin_edges, event_index
     from data_io import (
         load_session_data,
         get_trial_timestamps,
