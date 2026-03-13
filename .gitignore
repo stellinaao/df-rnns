@@ -3,13 +3,22 @@ figs/
 src/DAMN/
 *.npy
 *.npz
+notebooks/glm_dev_oo.ipynb
+
+# Python
+__pycache__/
+*.pyc
+src/__pycache__
+
+# Sweep results (regenerated per machine)
+results/
+
+# From master
 archive/
 logs/
-*.pyc
 notebooks/checkpoints/
 scripts/checkpoints/
 *.pkl
-src/__pycache__
 *.json
 *.pt
 .vscode
