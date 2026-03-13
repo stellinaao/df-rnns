@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import itertools
 import json
-import os
 import random
 import uuid
 from datetime import datetime
@@ -25,7 +24,6 @@ from rnn_utils import (
     VanillaRateRNNNeural,
     LSTMBehavior,
     LSTMNeural,
-    clear_training_state,
     run_training,
 )
 
@@ -93,7 +91,11 @@ def _dict_product(grid: Dict[str, list]) -> List[Dict[str, Any]]:
 
 def _filter_lstm_dropout(configs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Remove LSTM configs where dropout > 0 but num_layers == 1."""
-    return [c for c in configs if not (c.get("num_layers", 2) == 1 and c.get("dropout", 0.0) > 0.0)]
+    return [
+        c
+        for c in configs
+        if not (c.get("num_layers", 2) == 1 and c.get("dropout", 0.0) > 0.0)
+    ]
 
 
 def _normalize_value(v: Any) -> Any:
@@ -104,7 +106,9 @@ def _normalize_value(v: Any) -> Any:
     return v
 
 
-def _config_signature(cfg: Dict[str, Any], keys: Sequence[str]) -> Tuple[Tuple[str, Any], ...]:
+def _config_signature(
+    cfg: Dict[str, Any], keys: Sequence[str]
+) -> Tuple[Tuple[str, Any], ...]:
     return tuple((k, _normalize_value(cfg.get(k))) for k in keys)
 
 
@@ -203,7 +207,9 @@ def generate_search_configs(
         rng = random.Random(seed)
         seen_sigs: Set[Tuple[Tuple[str, Any], ...]] = set()
         if exclude_csv_paths:
-            dummy_keys = sorted(list(full_grid.keys()) + ["model_type", "task_type", "epochs"])
+            dummy_keys = sorted(
+                list(full_grid.keys()) + ["model_type", "task_type", "epochs"]
+            )
             seen_sigs = _read_seen_signatures(exclude_csv_paths, dummy_keys)
 
         configs: List[Dict[str, Any]] = []
@@ -212,7 +218,11 @@ def generate_search_configs(
         while len(configs) < max_configs and attempts < max_attempts:
             attempts += 1
             cfg = {k: rng.choice(v) for k, v in full_grid.items()}
-            if model_type == "lstm" and cfg.get("num_layers", 2) == 1 and cfg.get("dropout", 0.0) > 0.0:
+            if (
+                model_type == "lstm"
+                and cfg.get("num_layers", 2) == 1
+                and cfg.get("dropout", 0.0) > 0.0
+            ):
                 continue
             cfg["model_type"] = model_type
             cfg["task_type"] = task_type
@@ -237,7 +247,9 @@ def generate_search_configs(
     if exclude_csv_paths:
         sig_keys = sorted(k for k in configs[0].keys()) if configs else []
         seen_sigs_set = _read_seen_signatures(exclude_csv_paths, sig_keys)
-        configs = [c for c in configs if _config_signature(c, sig_keys) not in seen_sigs_set]
+        configs = [
+            c for c in configs if _config_signature(c, sig_keys) not in seen_sigs_set
+        ]
 
     if max_configs is not None and max_configs < len(configs):
         rng = random.Random(seed)
@@ -321,14 +333,11 @@ def generate_refined_search_configs(
         if k not in df_top.columns:
             value_scores[k] = {v: 1.0 for v in key_values[k]}
             continue
-        counts = (
-            df_top[k]
-            .apply(_normalize_value)
-            .value_counts(dropna=False)
-            .to_dict()
-        )
+        counts = df_top[k].apply(_normalize_value).value_counts(dropna=False).to_dict()
         denom = float(len(df_top) + len(key_values[k]))
-        value_scores[k] = {v: (float(counts.get(v, 0.0)) + 1.0) / denom for v in key_values[k]}
+        value_scores[k] = {
+            v: (float(counts.get(v, 0.0)) + 1.0) / denom for v in key_values[k]
+        }
 
     guided_weights = []
     for cfg in candidates:
@@ -349,12 +358,10 @@ def generate_refined_search_configs(
         seed=seed,
     )
 
-    chosen_sigs = {
-        _config_signature(c, sorted(c.keys()))
-        for c in guided
-    }
+    chosen_sigs = {_config_signature(c, sorted(c.keys())) for c in guided}
     remaining = [
-        c for c in candidates
+        c
+        for c in candidates
         if _config_signature(c, sorted(c.keys())) not in chosen_sigs
     ]
     rng = random.Random(seed + 1)
@@ -365,6 +372,7 @@ def generate_refined_search_configs(
 # ---------------------------------------------------------------------------
 # Model instantiation
 # ---------------------------------------------------------------------------
+
 
 def _build_model(
     config: Dict[str, Any],
@@ -407,6 +415,7 @@ def _build_model(
 # ---------------------------------------------------------------------------
 # Single-run execution
 # ---------------------------------------------------------------------------
+
 
 def run_single_config(
     config: Dict[str, Any],
@@ -454,6 +463,7 @@ def run_single_config(
 # ---------------------------------------------------------------------------
 # Sweep runner
 # ---------------------------------------------------------------------------
+
 
 def run_sweep(
     configs: List[Dict[str, Any]],
@@ -504,10 +514,14 @@ def run_sweep(
         model_type = cfg["model_type"]
         task_type = cfg["task_type"]
 
-        hp_summary = ", ".join(f"{k}={v}" for k, v in sorted(cfg.items()) if k not in ("model_type", "task_type"))
-        print(f"\n{'='*80}")
+        hp_summary = ", ".join(
+            f"{k}={v}"
+            for k, v in sorted(cfg.items())
+            if k not in ("model_type", "task_type")
+        )
+        print(f"\n{'=' * 80}")
         print(f"Run {i}/{n_total}: {model_type} {task_type} | {hp_summary}")
-        print(f"{'='*80}")
+        print(f"{'=' * 80}")
 
         try:
             results = run_single_config(
@@ -531,7 +545,9 @@ def run_sweep(
                 "best_epoch": 0,
                 "final_metric": float("nan"),
                 "final_loss": float("nan"),
-                "metric_source": "val" if (X_val is not None and Y_val is not None) else "train",
+                "metric_source": "val"
+                if (X_val is not None and Y_val is not None)
+                else "train",
                 "final_train_metric": float("nan"),
                 "final_train_loss": float("nan"),
                 "final_val_metric": float("nan"),
@@ -539,7 +555,14 @@ def run_sweep(
                 "elapsed_sec": 0.0,
             }
 
-        provenance_keys = {"animal_name", "session", "session_date", "target_key", "target_aggregation", "data_root"}
+        provenance_keys = {
+            "animal_name",
+            "session",
+            "session_date",
+            "target_key",
+            "target_aggregation",
+            "data_root",
+        }
         cfg_payload = {
             k: v
             for k, v in cfg.items()
@@ -556,7 +579,9 @@ def run_sweep(
             "session": cfg.get("session", row_metadata.get("session")),
             "session_date": cfg.get("session_date", row_metadata.get("session_date")),
             "target_key": cfg.get("target_key", row_metadata.get("target_key")),
-            "target_aggregation": cfg.get("target_aggregation", row_metadata.get("target_aggregation")),
+            "target_aggregation": cfg.get(
+                "target_aggregation", row_metadata.get("target_aggregation")
+            ),
             "data_root": cfg.get("data_root", row_metadata.get("data_root")),
             "val_fraction": row_metadata.get("val_fraction"),
             "min_val_trials": row_metadata.get("min_val_trials"),
@@ -597,7 +622,9 @@ def run_sweep(
         )
         print(f"(saved to {results_csv})")
 
-    print(f"\nSweep complete. {results_csv} now has "
-          f"{len(pd.read_csv(results_path, on_bad_lines='skip'))} total rows.")
+    print(
+        f"\nSweep complete. {results_csv} now has "
+        f"{len(pd.read_csv(results_path, on_bad_lines='skip'))} total rows."
+    )
 
     return pd.DataFrame(rows)

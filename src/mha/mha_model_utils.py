@@ -118,7 +118,9 @@ class MultiHeadSelfAttention(nn.Module):
     ):
         super().__init__()
         if d_model % n_heads != 0:
-            raise ValueError(f"d_model ({d_model}) must be divisible by n_heads ({n_heads}).")
+            raise ValueError(
+                f"d_model ({d_model}) must be divisible by n_heads ({n_heads})."
+            )
         head_dim = d_model // n_heads
         self.heads = nn.ModuleList(
             [
@@ -207,9 +209,14 @@ class NeuralAttentionRegressor(nn.Module):
         self.norm = nn.LayerNorm(d_model)
         self.out_proj = nn.Linear(d_model, output_dim)
 
-    def _sinusoidal_positional_encoding(self, t: int, d: int, device: torch.device) -> torch.Tensor:
+    def _sinusoidal_positional_encoding(
+        self, t: int, d: int, device: torch.device
+    ) -> torch.Tensor:
         pos = torch.arange(t, device=device, dtype=torch.float32).unsqueeze(1)
-        div = torch.exp(torch.arange(0, d, 2, device=device, dtype=torch.float32) * (-math.log(10000.0) / d))
+        div = torch.exp(
+            torch.arange(0, d, 2, device=device, dtype=torch.float32)
+            * (-math.log(10000.0) / d)
+        )
         pe = torch.zeros(t, d, device=device)
         pe[:, 0::2] = torch.sin(pos * div)
         if d > 1:
@@ -239,7 +246,9 @@ def make_trialwise_dataloaders(
     batch_size: int = 32,
 ) -> Tuple[DataLoader, Optional[DataLoader]]:
     if x_trials_np.ndim != 3 or y_trials_np.ndim != 3:
-        raise ValueError(f"Expected 3D arrays, got {x_trials_np.shape} and {y_trials_np.shape}")
+        raise ValueError(
+            f"Expected 3D arrays, got {x_trials_np.shape} and {y_trials_np.shape}"
+        )
     if x_trials_np.shape[:2] != y_trials_np.shape[:2]:
         raise ValueError(f"X/Y mismatch: {x_trials_np.shape} vs {y_trials_np.shape}")
 
@@ -293,7 +302,9 @@ def _unpack_batch(batch, device):
     return x.to(device), None, y.to(device)
 
 
-def evaluate_attention_model(model: nn.Module, data_loader: DataLoader, device: torch.device) -> Dict[str, float]:
+def evaluate_attention_model(
+    model: nn.Module, data_loader: DataLoader, device: torch.device
+) -> Dict[str, float]:
     model.eval()
     losses = []
     pearsons = []
@@ -333,7 +344,12 @@ def train_attention_regressor(
     model.to(dev)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
-    hist = {"train_loss": [], "train_pearson_r": [], "val_loss": [], "val_pearson_r": []}
+    hist = {
+        "train_loss": [],
+        "train_pearson_r": [],
+        "val_loss": [],
+        "val_pearson_r": [],
+    }
     best_val_pearson = -float("inf")
     best_state = None
     best_epoch = 0
@@ -369,7 +385,10 @@ def train_attention_regressor(
             val_metrics = evaluate_attention_model(model, val_loader, dev)
             hist["val_loss"].append(val_metrics["loss"])
             hist["val_pearson_r"].append(val_metrics["pearson_r"])
-            if not np.isnan(val_metrics["pearson_r"]) and val_metrics["pearson_r"] > best_val_pearson:
+            if (
+                not np.isnan(val_metrics["pearson_r"])
+                and val_metrics["pearson_r"] > best_val_pearson
+            ):
                 best_val_pearson = val_metrics["pearson_r"]
                 best_epoch = ep
                 bad_epochs = 0
@@ -384,20 +403,29 @@ def train_attention_regressor(
                     f"val_loss {hist['val_loss'][-1]:.6f} val_pearson_r {hist['val_pearson_r'][-1]:.4f}"
                 )
             else:
-                print(f"epoch {ep:4d} | train_loss {train_loss:.6f} train_pearson_r {train_pearson:.4f}")
+                print(
+                    f"epoch {ep:4d} | train_loss {train_loss:.6f} train_pearson_r {train_pearson:.4f}"
+                )
 
         if val_loader is not None and patience is not None and bad_epochs >= patience:
-            print(f"Early stopping at epoch {ep} (no val Pearson-r improvement for {patience} epochs)")
+            print(
+                f"Early stopping at epoch {ep} (no val Pearson-r improvement for {patience} epochs)"
+            )
             break
 
     if best_state is not None:
         model.load_state_dict(best_state)
-    return {"history": hist, "best_val_pearson_r": best_val_pearson, "best_epoch": best_epoch}
+    return {
+        "history": hist,
+        "best_val_pearson_r": best_val_pearson,
+        "best_epoch": best_epoch,
+    }
 
 
 # ---------------------------------------------------------------------------
 # Trial-context architecture
 # ---------------------------------------------------------------------------
+
 
 class TrialHistoryNeuralAttentionRegressor(nn.Module):
     """Neural regressor with cross-trial context window.
@@ -470,9 +498,14 @@ class TrialHistoryNeuralAttentionRegressor(nn.Module):
         self.out_proj = nn.Linear(d_model, output_dim)
 
     @staticmethod
-    def _sinusoidal_positional_encoding(t: int, d: int, device: torch.device) -> torch.Tensor:
+    def _sinusoidal_positional_encoding(
+        t: int, d: int, device: torch.device
+    ) -> torch.Tensor:
         pos = torch.arange(t, device=device, dtype=torch.float32).unsqueeze(1)
-        div = torch.exp(torch.arange(0, d, 2, device=device, dtype=torch.float32) * (-math.log(10000.0) / d))
+        div = torch.exp(
+            torch.arange(0, d, 2, device=device, dtype=torch.float32)
+            * (-math.log(10000.0) / d)
+        )
         pe = torch.zeros(t, d, device=device)
         pe[:, 0::2] = torch.sin(pos * div)
         if d > 1:
@@ -514,7 +547,9 @@ class TrialHistoryNeuralAttentionRegressor(nn.Module):
             trial_tokens = trial_tokens + self.trial_feature_proj(z)
 
         if self.trial_use_positional_encoding:
-            pe_trials = self._sinusoidal_positional_encoding(ctx_len, d_model, trial_tokens.device)
+            pe_trials = self._sinusoidal_positional_encoding(
+                ctx_len, d_model, trial_tokens.device
+            )
             trial_tokens = trial_tokens + pe_trials.unsqueeze(0)
 
         for block in self.trial_blocks:
@@ -531,6 +566,7 @@ class TrialHistoryNeuralAttentionRegressor(nn.Module):
 # ---------------------------------------------------------------------------
 # Trial-context dataloader helpers
 # ---------------------------------------------------------------------------
+
 
 def _build_trial_context_arrays(
     x_trials_np: np.ndarray,
@@ -577,12 +613,15 @@ def make_trial_context_dataloaders(
             f"Expected 3D arrays, got {x_trials_np.shape} and {y_trials_np.shape}"
         )
     if x_trials_np.shape[:2] != y_trials_np.shape[:2]:
-        raise ValueError(f"X/Y trial-bin mismatch: {x_trials_np.shape} vs {y_trials_np.shape}")
+        raise ValueError(
+            f"X/Y trial-bin mismatch: {x_trials_np.shape} vs {y_trials_np.shape}"
+        )
     if not (0.0 <= val_fraction < 1.0):
         raise ValueError("val_fraction must be in [0,1)")
 
     x_ctx_np, y_cur_np, z_ctx_np = _build_trial_context_arrays(
-        x_trials_np, y_trials_np,
+        x_trials_np,
+        y_trials_np,
         trial_context_len=int(trial_context_len),
         z_trials_np=z_trials_np,
     )
@@ -637,6 +676,10 @@ def make_trial_context_dataloaders(
     print(
         f"context_len={trial_context_len} | train samples={len(x_train)} | "
         f"val samples={0 if x_val_np is None else len(x_val)} | batch_size={batch_size}"
-        + (f" | trial_features={z_train_np.shape[-1]}" if z_train_np is not None else "")
+        + (
+            f" | trial_features={z_train_np.shape[-1]}"
+            if z_train_np is not None
+            else ""
+        )
     )
     return train_loader, val_loader

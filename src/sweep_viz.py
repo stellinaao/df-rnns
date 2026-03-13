@@ -19,6 +19,7 @@ import pandas as pd
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _metric_label(task_type: str) -> str:
     return "Accuracy" if task_type == "behavior" else "Pearson r"
 
@@ -45,6 +46,7 @@ def _filter_df(
 # Cross-architecture comparisons
 # ---------------------------------------------------------------------------
 
+
 def plot_best_per_architecture(
     df: pd.DataFrame,
     task_type: Optional[str] = None,
@@ -67,14 +69,35 @@ def plot_best_per_architecture(
         colors = plt.cm.Set2(np.linspace(0, 1, len(model_types)))
         bars = ax.bar(
             [m for m in model_types if m in best_per_model.index],
-            [best_per_model.get(m, 0) for m in model_types if m in best_per_model.index],
-            color=[colors[i] for i, m in enumerate(model_types) if m in best_per_model.index],
+            [
+                best_per_model.get(m, 0)
+                for m in model_types
+                if m in best_per_model.index
+            ],
+            color=[
+                colors[i]
+                for i, m in enumerate(model_types)
+                if m in best_per_model.index
+            ],
             edgecolor="black",
             linewidth=0.8,
         )
-        for bar, val in zip(bars, [best_per_model.get(m, 0) for m in model_types if m in best_per_model.index]):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.005,
-                    f"{val:.4f}", ha="center", va="bottom", fontsize=10)
+        for bar, val in zip(
+            bars,
+            [
+                best_per_model.get(m, 0)
+                for m in model_types
+                if m in best_per_model.index
+            ],
+        ):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.005,
+                f"{val:.4f}",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+            )
         ax.set_title(f"Best {_metric_label(tt)}", fontsize=13)
         ax.set_ylabel(_metric_label(tt), fontsize=11)
         ax.set_xlabel("Model", fontsize=11)
@@ -108,8 +131,16 @@ def plot_training_curves_comparison(
         best_idx = mt_df["best_metric"].idxmax()
         best_row = mt_df.loc[best_idx]
 
-        loss_hist = json.loads(best_row["loss_hist"]) if isinstance(best_row["loss_hist"], str) else best_row["loss_hist"]
-        metric_hist = json.loads(best_row["metric_hist"]) if isinstance(best_row["metric_hist"], str) else best_row["metric_hist"]
+        loss_hist = (
+            json.loads(best_row["loss_hist"])
+            if isinstance(best_row["loss_hist"], str)
+            else best_row["loss_hist"]
+        )
+        metric_hist = (
+            json.loads(best_row["metric_hist"])
+            if isinstance(best_row["metric_hist"], str)
+            else best_row["metric_hist"]
+        )
 
         start = max(0, int(skip_warmup_epochs))
         epochs = np.arange(start, len(loss_hist))
@@ -139,7 +170,9 @@ def plot_training_curves_comparison(
     metric_name = _metric_label(task_type)
     ax_metric.set_xlabel("Epoch", fontsize=12)
     ax_metric.set_ylabel(metric_name, fontsize=12)
-    ax_metric.set_title(f"{metric_name} Curves (Best Run per Architecture)", fontsize=13)
+    ax_metric.set_title(
+        f"{metric_name} Curves (Best Run per Architecture)", fontsize=13
+    )
     ax_metric.legend(frameon=False)
     for spine in ["top", "right"]:
         ax_metric.spines[spine].set_visible(False)
@@ -160,7 +193,10 @@ def plot_metric_distribution(
         return
 
     model_types = sorted(sub["model_type"].unique())
-    data = [sub[sub["model_type"] == mt]["best_metric"].dropna().values for mt in model_types]
+    data = [
+        sub[sub["model_type"] == mt]["best_metric"].dropna().values
+        for mt in model_types
+    ]
 
     fig, ax = plt.subplots(figsize=figsize)
     bp = ax.boxplot(data, labels=model_types, patch_artist=True, widths=0.5)
@@ -171,7 +207,9 @@ def plot_metric_distribution(
 
     ax.set_ylabel(_metric_label(task_type), fontsize=12)
     ax.set_xlabel("Model", fontsize=12)
-    ax.set_title(f"Distribution of Best {_metric_label(task_type)} per Run", fontsize=13)
+    ax.set_title(
+        f"Distribution of Best {_metric_label(task_type)} per Run", fontsize=13
+    )
     for spine in ["top", "right"]:
         ax.spines[spine].set_visible(False)
 
@@ -182,6 +220,7 @@ def plot_metric_distribution(
 # ---------------------------------------------------------------------------
 # Per-architecture hyperparameter analysis
 # ---------------------------------------------------------------------------
+
 
 def plot_hp_importance(
     df: pd.DataFrame,
@@ -202,12 +241,24 @@ def plot_hp_importance(
         print("No data to plot.")
         return
 
-    metadata_cols = {"run_id", "timestamp", "model_type", "task_type",
-                     "best_metric", "best_epoch", "final_metric", "final_loss",
-                     "elapsed_sec", "loss_hist", "metric_hist"}
+    metadata_cols = {
+        "run_id",
+        "timestamp",
+        "model_type",
+        "task_type",
+        "best_metric",
+        "best_epoch",
+        "final_metric",
+        "final_loss",
+        "elapsed_sec",
+        "loss_hist",
+        "metric_hist",
+    }
 
     if hp_cols is None:
-        hp_cols = [c for c in sub.columns if c not in metadata_cols and sub[c].nunique() > 1]
+        hp_cols = [
+            c for c in sub.columns if c not in metadata_cols and sub[c].nunique() > 1
+        ]
 
     if not hp_cols:
         print("No HP columns with variation found.")
@@ -220,7 +271,10 @@ def plot_hp_importance(
 
     fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, squeeze=False)
     model_types = sorted(sub["model_type"].unique())
-    color_map = {mt: plt.cm.tab10(i / max(1, len(model_types) - 1)) for i, mt in enumerate(model_types)}
+    color_map = {
+        mt: plt.cm.tab10(i / max(1, len(model_types) - 1))
+        for i, mt in enumerate(model_types)
+    }
 
     for idx, hp in enumerate(hp_cols):
         r, c = divmod(idx, n_cols)
@@ -232,6 +286,7 @@ def plot_hp_importance(
         # Robust categorical labeling for mixed-type columns (e.g., None + strings).
         cat_map = None
         if not is_numeric_hp:
+
             def _cat_label(v):
                 if pd.isna(v):
                     return "<NA>"
@@ -246,16 +301,36 @@ def plot_hp_importance(
             x_vals_series = mt_df[hp]
 
             if is_numeric_hp:
-                x_numeric = pd.to_numeric(x_vals_series, errors="coerce").to_numpy(dtype=float)
-                jitter = np.random.default_rng(42).uniform(-0.05, 0.05, size=len(x_numeric))
-                ax.scatter(x_numeric + jitter, y_vals, alpha=0.6, s=30,
-                           color=color_map[mt], label=mt, edgecolors="none")
+                x_numeric = pd.to_numeric(x_vals_series, errors="coerce").to_numpy(
+                    dtype=float
+                )
+                jitter = np.random.default_rng(42).uniform(
+                    -0.05, 0.05, size=len(x_numeric)
+                )
+                ax.scatter(
+                    x_numeric + jitter,
+                    y_vals,
+                    alpha=0.6,
+                    s=30,
+                    color=color_map[mt],
+                    label=mt,
+                    edgecolors="none",
+                )
             else:
-                x_labels = x_vals_series.map(lambda v: "<NA>" if pd.isna(v) else str(v)).tolist()
+                x_labels = x_vals_series.map(
+                    lambda v: "<NA>" if pd.isna(v) else str(v)
+                ).tolist()
                 x_pos = np.array([cat_map[v] for v in x_labels], dtype=float)
                 jitter = np.random.default_rng(42).uniform(-0.1, 0.1, size=len(x_pos))
-                ax.scatter(x_pos + jitter, y_vals, alpha=0.6, s=30,
-                           color=color_map[mt], label=mt, edgecolors="none")
+                ax.scatter(
+                    x_pos + jitter,
+                    y_vals,
+                    alpha=0.6,
+                    s=30,
+                    color=color_map[mt],
+                    label=mt,
+                    edgecolors="none",
+                )
 
         if not is_numeric_hp and cat_map is not None:
             ax.set_xticks(list(cat_map.values()))
@@ -270,12 +345,14 @@ def plot_hp_importance(
     handles, labels = axes[0][0].get_legend_handles_labels()
     seen = set()
     unique_handles, unique_labels = [], []
-    for h, l in zip(handles, labels):
-        if l not in seen:
-            seen.add(l)
-            unique_handles.append(h)
-            unique_labels.append(l)
-    fig.legend(unique_handles, unique_labels, loc="upper right", frameon=False, fontsize=10)
+    for handle, label in zip(handles, labels):
+        if label not in seen:
+            seen.add(label)
+            unique_handles.append(handle)
+            unique_labels.append(label)
+    fig.legend(
+        unique_handles, unique_labels, loc="upper right", frameon=False, fontsize=10
+    )
 
     for idx in range(len(hp_cols), n_rows * n_cols):
         r, c = divmod(idx, n_cols)
@@ -316,8 +393,17 @@ def plot_hp_heatmap(
         for j in range(pivot.shape[1]):
             val = pivot.values[i, j]
             if not np.isnan(val):
-                ax.text(j, i, f"{val:.3f}", ha="center", va="center", fontsize=9,
-                        color="white" if val < pivot.values[~np.isnan(pivot.values)].mean() else "black")
+                ax.text(
+                    j,
+                    i,
+                    f"{val:.3f}",
+                    ha="center",
+                    va="center",
+                    fontsize=9,
+                    color="white"
+                    if val < pivot.values[~np.isnan(pivot.values)].mean()
+                    else "black",
+                )
 
     plt.colorbar(im, ax=ax, label=_metric_label(task_type))
     title = f"{hp_x} vs {hp_y}"
@@ -349,12 +435,24 @@ def plot_sweep_parallel_coords(
         print("No data to plot.")
         return
 
-    metadata_cols = {"run_id", "timestamp", "model_type", "task_type",
-                     "best_metric", "best_epoch", "final_metric", "final_loss",
-                     "elapsed_sec", "loss_hist", "metric_hist"}
+    metadata_cols = {
+        "run_id",
+        "timestamp",
+        "model_type",
+        "task_type",
+        "best_metric",
+        "best_epoch",
+        "final_metric",
+        "final_loss",
+        "elapsed_sec",
+        "loss_hist",
+        "metric_hist",
+    }
 
     if hp_cols is None:
-        hp_cols = [c for c in sub.columns if c not in metadata_cols and sub[c].nunique() > 1]
+        hp_cols = [
+            c for c in sub.columns if c not in metadata_cols and sub[c].nunique() > 1
+        ]
 
     if not hp_cols:
         print("No HP columns with variation found.")
@@ -378,7 +476,9 @@ def plot_sweep_parallel_coords(
         if vmax == vmin:
             axes_data.setdefault(col, {})["normalized"] = np.full(len(vals), 0.5)
         else:
-            axes_data.setdefault(col, {})["normalized"] = ((vals - vmin) / (vmax - vmin)).values
+            axes_data.setdefault(col, {})["normalized"] = (
+                (vals - vmin) / (vmax - vmin)
+            ).values
 
     metric_vals = sub["best_metric"].values
     metric_min, metric_max = np.nanmin(metric_vals), np.nanmax(metric_vals)
@@ -402,7 +502,9 @@ def plot_sweep_parallel_coords(
     for spine in ["top", "right"]:
         ax.spines[spine].set_visible(False)
 
-    sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=metric_min, vmax=metric_max))
+    sm = plt.cm.ScalarMappable(
+        cmap=cmap, norm=plt.Normalize(vmin=metric_min, vmax=metric_max)
+    )
     sm.set_array([])
     plt.colorbar(sm, ax=ax, label=_metric_label(task_type))
 

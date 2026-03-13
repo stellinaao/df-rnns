@@ -67,10 +67,10 @@ BEST_CONFIGS = {
 
 SWEEP_RESULTS = {
     "early": "results/lstm/sweep_early.csv",
-    "late":  "results/lstm/sweep_late.csv",
+    "late": "results/lstm/sweep_late.csv",
 }
 
 BEST_CONFIG_RESULTS = {
     "early": "results/best_configs/lstm_early.csv",
-    "late":  "results/best_configs/lstm_late.csv",
+    "late": "results/best_configs/lstm_late.csv",
 }

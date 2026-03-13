@@ -3,27 +3,27 @@
 
 # PyTorch (CUDA 12.1) – adjust the index URL for your CUDA version.
 --extra-index-url https://download.pytorch.org/whl/cu121
-torch
-torchaudio
-torchvision
+
+# This repo itself (installs src/ as a package)
+-e .
+h5py
+ipykernel
+
+# Jupyter (for running notebooks via JupyterLab or VS Code)
+jupyterlab
+matplotlib
+natsort
 
 # Scientific stack
 numpy
 pandas
-scipy
 scikit-learn
-matplotlib
+scipy
 seaborn
-
-# Jupyter (for running notebooks via JupyterLab or VS Code)
-jupyterlab
-ipykernel
 
 # Neural data dependency (used by create_neural_targets_from_psth)
 spks @ git+https://github.com/spkware/spks.git
-natsort
+torch
+torchaudio
+torchvision
 tqdm
-h5py
-
-# This repo itself (installs src/ as a package)
--e .

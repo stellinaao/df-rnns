@@ -29,7 +29,6 @@ visualize_neural_predictions    – heatmap + trial-averaged prediction diagnost
 from __future__ import annotations
 
 import copy
-import json
 import math
 import time
 from dataclasses import dataclass
@@ -45,6 +44,7 @@ from scipy.stats import pearsonr
 
 
 # ─── Task ────────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class TaskConfig:
@@ -70,7 +70,9 @@ class TwoArmedBanditBlockTask:
         side = self.start_side
         total = 0
         while total < self.cfg.total_trials:
-            block_len = int(rng.integers(self.cfg.min_block_len, self.cfg.max_block_len + 1))
+            block_len = int(
+                rng.integers(self.cfg.min_block_len, self.cfg.max_block_len + 1)
+            )
             blocks.append((side, block_len))
             total += block_len
             side = 1 - side
@@ -110,7 +112,9 @@ class TwoArmedBanditBlockTask:
                     prev_left = 1.0 if prev_action == self.LEFT else 0.0
                     prev_right = 1.0 if prev_action == self.RIGHT else 0.0
 
-                X[t] = np.array([prev_left, prev_right, prev_reward, trial_start], dtype=np.float32)
+                X[t] = np.array(
+                    [prev_left, prev_right, prev_reward, trial_start], dtype=np.float32
+                )
                 y[t] = high_side
                 block_ids[t] = bidx
 
@@ -139,6 +143,7 @@ class TwoArmedBanditBlockTask:
 
 
 # Helpers
+
 
 def sample_training_batch(
     task: TwoArmedBanditBlockTask,
@@ -175,6 +180,7 @@ def moving_average(x, k: int = 25) -> np.ndarray:
 
 # Models:
 
+
 def _set_lstm_forget_bias(lstm: nn.LSTM, forget_bias_init: float) -> None:
     """Set LSTM forget-gate bias to a controlled initial value.
 
@@ -186,10 +192,11 @@ def _set_lstm_forget_bias(lstm: nn.LSTM, forget_bias_init: float) -> None:
     for name, param in lstm.named_parameters():
         if "bias_ih_l" in name:
             with torch.no_grad():
-                param[hidden: 2 * hidden].fill_(float(forget_bias_init))
+                param[hidden : 2 * hidden].fill_(float(forget_bias_init))
         elif "bias_hh_l" in name:
             with torch.no_grad():
-                param[hidden: 2 * hidden].fill_(0.0)
+                param[hidden : 2 * hidden].fill_(0.0)
+
 
 class VanillaRateRNN(nn.Module):
     """Vanilla rate RNN."""
@@ -209,10 +216,16 @@ class VanillaRateRNN(nn.Module):
         self.output_size = output_size
         self.alpha = dt / tau
 
-        self.w_in  = nn.Parameter(torch.randn(hidden_size, input_size) / math.sqrt(input_size))
-        self.w_rec = nn.Parameter((g / math.sqrt(hidden_size)) * torch.randn(hidden_size, hidden_size))
+        self.w_in = nn.Parameter(
+            torch.randn(hidden_size, input_size) / math.sqrt(input_size)
+        )
+        self.w_rec = nn.Parameter(
+            (g / math.sqrt(hidden_size)) * torch.randn(hidden_size, hidden_size)
+        )
         self.b_rec = nn.Parameter(torch.zeros(hidden_size))
-        self.w_out = nn.Parameter(torch.randn(output_size, hidden_size) / math.sqrt(hidden_size))
+        self.w_out = nn.Parameter(
+            torch.randn(output_size, hidden_size) / math.sqrt(hidden_size)
+        )
         self.b_out = nn.Parameter(torch.zeros(output_size))
 
     def forward(self, x: torch.Tensor, h0: Optional[torch.Tensor] = None):
@@ -233,7 +246,11 @@ class VanillaRateRNN(nn.Module):
         logits_hist, h_hist = [], []
         for t in range(T):
             u_t = x[:, t, :]
-            pre = F.linear(u_t, self.w_in) + F.linear(torch.tanh(h), self.w_rec) + self.b_rec
+            pre = (
+                F.linear(u_t, self.w_in)
+                + F.linear(torch.tanh(h), self.w_rec)
+                + self.b_rec
+            )
             h = h + self.alpha * (-h + pre)
             logits_hist.append(F.linear(torch.tanh(h), self.w_out, self.b_out))
             h_hist.append(h)
@@ -259,10 +276,16 @@ class VanillaRateRNNNeural(nn.Module):
         self.output_size = output_size
         self.alpha = dt / tau
 
-        self.w_in  = nn.Parameter(torch.randn(hidden_size, input_size) / math.sqrt(input_size))
-        self.w_rec = nn.Parameter((g / math.sqrt(hidden_size)) * torch.randn(hidden_size, hidden_size))
+        self.w_in = nn.Parameter(
+            torch.randn(hidden_size, input_size) / math.sqrt(input_size)
+        )
+        self.w_rec = nn.Parameter(
+            (g / math.sqrt(hidden_size)) * torch.randn(hidden_size, hidden_size)
+        )
         self.b_rec = nn.Parameter(torch.zeros(hidden_size))
-        self.w_out = nn.Parameter(torch.randn(output_size, hidden_size) / math.sqrt(hidden_size))
+        self.w_out = nn.Parameter(
+            torch.randn(output_size, hidden_size) / math.sqrt(hidden_size)
+        )
         self.b_out = nn.Parameter(torch.zeros(output_size))
 
     def forward(self, x: torch.Tensor, h0: Optional[torch.Tensor] = None):
@@ -283,7 +306,11 @@ class VanillaRateRNNNeural(nn.Module):
         y_hist, h_hist = [], []
         for t in range(T):
             u_t = x[:, t, :]
-            pre = F.linear(u_t, self.w_in) + F.linear(torch.relu(h), self.w_rec) + self.b_rec
+            pre = (
+                F.linear(u_t, self.w_in)
+                + F.linear(torch.relu(h), self.w_rec)
+                + self.b_rec
+            )
             h = h + self.alpha * (-h + pre)
             y_hist.append(F.linear(torch.relu(h), self.w_out, self.b_out))
             h_hist.append(h)
@@ -380,7 +407,9 @@ class LSTMNeural(nn.Module):
             dropout=dropout if num_layers > 1 else 0.0,
         )
         _set_lstm_forget_bias(self.lstm, forget_bias_init)
-        self.out_drop = nn.Dropout(output_dropout) if output_dropout > 0 else nn.Identity()
+        self.out_drop = (
+            nn.Dropout(output_dropout) if output_dropout > 0 else nn.Identity()
+        )
         self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x: torch.Tensor, state=None):
@@ -541,6 +570,7 @@ def train_neural_rnn(
 # Unified training wrapper for hyperparameter sweeps
 # ---------------------------------------------------------------------------
 
+
 def _build_optimizer(
     model: nn.Module,
     optimizer_name: str,
@@ -549,11 +579,15 @@ def _build_optimizer(
 ) -> torch.optim.Optimizer:
     name = optimizer_name.lower()
     if name == "adamw":
-        return torch.optim.AdamW(model.parameters(), lr=lr, betas=(0.95, 0.999), weight_decay=weight_decay)
+        return torch.optim.AdamW(
+            model.parameters(), lr=lr, betas=(0.95, 0.999), weight_decay=weight_decay
+        )
     if name == "adam":
         return torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     if name == "sgd":
-        return torch.optim.SGD(model.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay)
+        return torch.optim.SGD(
+            model.parameters(), lr=lr, momentum=0.9, weight_decay=weight_decay
+        )
     raise ValueError(f"Unknown optimizer: {optimizer_name}")
 
 
@@ -568,9 +602,13 @@ def _build_scheduler(
     if name == "cosine":
         return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
     if name == "plateau":
-        return torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", patience=50, factor=0.5)
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", patience=50, factor=0.5
+        )
     if name == "onecycle":
-        return torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=optimizer.defaults["lr"] * 10, total_steps=epochs)
+        return torch.optim.lr_scheduler.OneCycleLR(
+            optimizer, max_lr=optimizer.defaults["lr"] * 10, total_steps=epochs
+        )
     raise ValueError(f"Unknown scheduler: {scheduler_name}")
 
 
@@ -724,13 +762,15 @@ def run_training(
 
             output_batch, hidden_states = model(x_batch)
             if task_type == "behavior":
-                pred_loss = F.cross_entropy(output_batch.reshape(-1, 2), y_batch.reshape(-1))
+                pred_loss = F.cross_entropy(
+                    output_batch.reshape(-1, 2), y_batch.reshape(-1)
+                )
             else:
                 pred_loss = F.mse_loss(output_batch, y_batch)
 
             loss = pred_loss
             if activity_reg > 0.0 and hidden_states is not None:
-                loss = loss + activity_reg * torch.mean(hidden_states ** 2)
+                loss = loss + activity_reg * torch.mean(hidden_states**2)
 
             optimizer.zero_grad()
             loss.backward()
@@ -745,8 +785,12 @@ def run_training(
         with torch.no_grad():
             output_train, _ = model(X_seq)
             if task_type == "behavior":
-                train_pred_loss = F.cross_entropy(output_train.reshape(-1, 2), Y_seq.reshape(-1))
-                train_metric = (output_train.argmax(dim=-1) == Y_seq).float().mean().item()
+                train_pred_loss = F.cross_entropy(
+                    output_train.reshape(-1, 2), Y_seq.reshape(-1)
+                )
+                train_metric = (
+                    (output_train.argmax(dim=-1) == Y_seq).float().mean().item()
+                )
             else:
                 train_pred_loss = F.mse_loss(output_train, Y_seq)
                 train_metric = _pearson_r_metric(Y_seq, output_train)
@@ -754,8 +798,12 @@ def run_training(
             if has_val:
                 output_val, _ = model(X_val)
                 if task_type == "behavior":
-                    val_pred_loss = F.cross_entropy(output_val.reshape(-1, 2), Y_val.reshape(-1))
-                    val_metric = (output_val.argmax(dim=-1) == Y_val).float().mean().item()
+                    val_pred_loss = F.cross_entropy(
+                        output_val.reshape(-1, 2), Y_val.reshape(-1)
+                    )
+                    val_metric = (
+                        (output_val.argmax(dim=-1) == Y_val).float().mean().item()
+                    )
                 else:
                     val_pred_loss = F.mse_loss(output_val, Y_val)
                     val_metric = _pearson_r_metric(Y_val, output_val)
@@ -765,7 +813,11 @@ def run_training(
 
         if scheduler is not None:
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                ref_loss = float(val_pred_loss.item()) if has_val else float(train_pred_loss.item())
+                ref_loss = (
+                    float(val_pred_loss.item())
+                    if has_val
+                    else float(train_pred_loss.item())
+                )
                 scheduler.step(ref_loss)
             else:
                 scheduler.step()
@@ -794,10 +846,14 @@ def run_training(
                     f"| val_loss {val_pred_loss.item():.6f} | val_{metric_name} {val_metric:.4f}"
                 )
             else:
-                print(f"epoch {ep:4d} | train_loss {train_pred_loss.item():.6f} | train_{metric_name} {train_metric:.4f}")
+                print(
+                    f"epoch {ep:4d} | train_loss {train_pred_loss.item():.6f} | train_{metric_name} {train_metric:.4f}"
+                )
 
         if patience is not None and epochs_without_improvement >= patience:
-            print(f"Early stopping at epoch {ep} (no improvement for {patience} epochs)")
+            print(
+                f"Early stopping at epoch {ep} (no improvement for {patience} epochs)"
+            )
             break
 
     elapsed = time.time() - t0
@@ -817,17 +873,28 @@ def run_training(
         "metric_source": "val" if has_val else "train",
         "best_metric": float(best_metric),
         "best_epoch": int(best_epoch),
-        "final_metric": float(primary_metric_hist[-1]) if primary_metric_hist else float("nan"),
-        "final_loss": float(primary_loss_hist[-1]) if primary_loss_hist else float("nan"),
-        "final_train_metric": float(train_metric_hist[-1]) if train_metric_hist else float("nan"),
-        "final_train_loss": float(train_loss_hist[-1]) if train_loss_hist else float("nan"),
-        "final_val_metric": float(val_metric_hist[-1]) if val_metric_hist else float("nan"),
+        "final_metric": float(primary_metric_hist[-1])
+        if primary_metric_hist
+        else float("nan"),
+        "final_loss": float(primary_loss_hist[-1])
+        if primary_loss_hist
+        else float("nan"),
+        "final_train_metric": float(train_metric_hist[-1])
+        if train_metric_hist
+        else float("nan"),
+        "final_train_loss": float(train_loss_hist[-1])
+        if train_loss_hist
+        else float("nan"),
+        "final_val_metric": float(val_metric_hist[-1])
+        if val_metric_hist
+        else float("nan"),
         "final_val_loss": float(val_loss_hist[-1]) if val_loss_hist else float("nan"),
         "elapsed_sec": round(elapsed, 2),
     }
 
 
 # Neural Data RNN
+
 
 def create_neural_targets_from_psth(
     animal_name: str,
@@ -871,7 +938,14 @@ def create_neural_targets_from_psth(
     except ImportError:
         from spks.event_aligned import compute_spike_count
 
-        def compute_firing_rate(event_times, spike_times, pre_seconds, post_seconds, binwidth_ms, kernel=None):
+        def compute_firing_rate(
+            event_times,
+            spike_times,
+            pre_seconds,
+            post_seconds,
+            binwidth_ms,
+            kernel=None,
+        ):
             """Compatibility wrapper for newer spks releases.
 
             Newer ``spks`` exposes ``compute_spike_count`` (counts/bin) instead of
@@ -889,6 +963,7 @@ def create_neural_targets_from_psth(
             binwidth_s = float(binwidth_ms) / 1000.0
             psth_hz = psth_counts / binwidth_s
             return psth_hz, timebin_edges, event_index
+
     from data_io import (
         load_session_data,
         get_trial_timestamps,
@@ -949,13 +1024,17 @@ def create_neural_targets_from_psth(
 
             all_unit_psth = np.asarray(all_unit_psth, dtype=np.float32)
             if all_unit_psth.ndim != 3:
-                print(f"Skipping {probe}:{area} (unexpected PSTH shape {all_unit_psth.shape})")
+                print(
+                    f"Skipping {probe}:{area} (unexpected PSTH shape {all_unit_psth.shape})"
+                )
                 continue
 
             if drop_first_trial and all_unit_psth.shape[1] > 1:
                 all_unit_psth = all_unit_psth[:, 1:, :]
 
-            all_unit_psth = np.nan_to_num(all_unit_psth, nan=0.0, posinf=0.0, neginf=0.0)
+            all_unit_psth = np.nan_to_num(
+                all_unit_psth, nan=0.0, posinf=0.0, neginf=0.0
+            )
 
             # Exclude units with mean firing rate < min_rate_hz
             mean_rate_per_unit = all_unit_psth.mean(axis=(1, 2))
@@ -963,14 +1042,18 @@ def create_neural_targets_from_psth(
             n_excluded = int((~keep).sum())
             if n_excluded > 0:
                 all_unit_psth = all_unit_psth[keep]
-                print(f"{probe}:{area} excluded {n_excluded} unit(s) with mean rate < {min_rate_hz} Hz")
+                print(
+                    f"{probe}:{area} excluded {n_excluded} unit(s) with mean rate < {min_rate_hz} Hz"
+                )
             if all_unit_psth.size == 0:
                 print(f"Skipping {probe}:{area} (no units left after filtering)")
                 continue
 
             # (n_units, n_trials, n_bins) -> (n_trials, n_units * n_bins)
             n_units, n_trials, n_bins = all_unit_psth.shape
-            y_neural = np.transpose(all_unit_psth, (1, 0, 2)).reshape(n_trials, n_units * n_bins)
+            y_neural = np.transpose(all_unit_psth, (1, 0, 2)).reshape(
+                n_trials, n_units * n_bins
+            )
 
             key = f"{probe}_{area}"
             neural_targets[key] = y_neural
@@ -998,6 +1081,7 @@ def align_behavior_and_neural(
 
 # Simulate
 
+
 @torch.no_grad()
 def run_closed_loop_session_for_plot(
     model: VanillaRateRNN,
@@ -1014,10 +1098,10 @@ def run_closed_loop_session_for_plot(
     blocks = task._generate_blocks(rng)
     T = task.cfg.total_trials
 
-    actions       = np.zeros(T, dtype=np.int64)
-    targets       = np.zeros(T, dtype=np.int64)
-    rewards       = np.zeros(T, dtype=np.float32)
-    block_ids     = np.zeros(T, dtype=np.int64)
+    actions = np.zeros(T, dtype=np.int64)
+    targets = np.zeros(T, dtype=np.int64)
+    rewards = np.zeros(T, dtype=np.float32)
+    block_ids = np.zeros(T, dtype=np.int64)
     trial_in_block = np.zeros(T, dtype=np.int64)
 
     h = torch.zeros(1, model.hidden_size, device=device)
@@ -1034,7 +1118,7 @@ def run_closed_loop_session_for_plot(
             if prev_action is None:
                 prev_left, prev_right = 0.0, 0.0
             else:
-                prev_left  = 1.0 if prev_action == 0 else 0.0
+                prev_left = 1.0 if prev_action == 0 else 0.0
                 prev_right = 1.0 if prev_action == 1 else 0.0
 
             x_t = torch.tensor(
@@ -1052,10 +1136,10 @@ def run_closed_loop_session_for_plot(
                 probs = torch.softmax(logits[0, -1] / temperature, dim=0).cpu().numpy()
                 action = int(rng.choice([0, 1], p=probs))
 
-            actions[t]        = action
-            targets[t]        = high_side
-            rewards[t]        = 1.0 if action == high_side else 0.0
-            block_ids[t]      = bidx
+            actions[t] = action
+            targets[t] = high_side
+            rewards[t] = 1.0 if action == high_side else 0.0
+            block_ids[t] = bidx
             trial_in_block[t] = i
 
             prev_action = action
@@ -1063,12 +1147,12 @@ def run_closed_loop_session_for_plot(
             t += 1
 
     return {
-        "actions":        actions,
-        "targets":        targets,
-        "rewards":        rewards,
-        "block_ids":      block_ids,
+        "actions": actions,
+        "targets": targets,
+        "rewards": rewards,
+        "block_ids": block_ids,
         "trial_in_block": trial_in_block,
-        "blocks":         blocks,
+        "blocks": blocks,
     }
 
 
@@ -1092,10 +1176,10 @@ def run_closed_loop_lstm(
     blocks = task._generate_blocks(rng)
     T = task.cfg.total_trials
 
-    actions        = np.zeros(T, dtype=np.int64)
-    targets        = np.zeros(T, dtype=np.int64)
-    rewards        = np.zeros(T, dtype=np.float32)
-    block_ids      = np.zeros(T, dtype=np.int64)
+    actions = np.zeros(T, dtype=np.int64)
+    targets = np.zeros(T, dtype=np.int64)
+    rewards = np.zeros(T, dtype=np.float32)
+    block_ids = np.zeros(T, dtype=np.int64)
     trial_in_block = np.zeros(T, dtype=np.int64)
 
     state = None
@@ -1112,7 +1196,7 @@ def run_closed_loop_lstm(
             if prev_action is None:
                 prev_left, prev_right = 0.0, 0.0
             else:
-                prev_left  = 1.0 if prev_action == 0 else 0.0
+                prev_left = 1.0 if prev_action == 0 else 0.0
                 prev_right = 1.0 if prev_action == 1 else 0.0
 
             x_t = torch.tensor(
@@ -1130,10 +1214,10 @@ def run_closed_loop_lstm(
                 probs = torch.softmax(logits[0, -1] / temperature, dim=0).cpu().numpy()
                 action = int(rng.choice([0, 1], p=probs))
 
-            actions[t]        = action
-            targets[t]        = high_side
-            rewards[t]        = 1.0 if action == high_side else 0.0
-            block_ids[t]      = bidx
+            actions[t] = action
+            targets[t] = high_side
+            rewards[t] = 1.0 if action == high_side else 0.0
+            block_ids[t] = bidx
             trial_in_block[t] = i
 
             prev_action = action
@@ -1141,16 +1225,17 @@ def run_closed_loop_lstm(
             t += 1
 
     return {
-        "actions":        actions,
-        "targets":        targets,
-        "rewards":        rewards,
-        "block_ids":      block_ids,
+        "actions": actions,
+        "targets": targets,
+        "rewards": rewards,
+        "block_ids": block_ids,
         "trial_in_block": trial_in_block,
-        "blocks":         blocks,
+        "blocks": blocks,
     }
 
 
 # Plotting helpers
+
 
 def plot_block_choice_panel(
     session: dict,
@@ -1158,16 +1243,16 @@ def plot_block_choice_panel(
     figsize: tuple = (11, 3.8),
 ) -> None:
     """Choice scatter + smoothed P(right) over blocks."""
-    actions        = session["actions"]
-    targets        = session["targets"]
-    block_ids      = session["block_ids"]
+    actions = session["actions"]
+    targets = session["targets"]
+    block_ids = session["block_ids"]
     trial_in_block = session["trial_in_block"]
-    blocks         = session["blocks"]
+    blocks = session["blocks"]
 
     n_blocks = int(block_ids.max()) + 1
     x = np.zeros_like(actions, dtype=float)
     for t in range(actions.size):
-        b    = int(block_ids[t])
+        b = int(block_ids[t])
         blen = blocks[b][1]
         x[t] = (b + 1) + (trial_in_block[t] + 1) / (blen + 1)
 
@@ -1183,8 +1268,17 @@ def plot_block_choice_panel(
         ybar = 1.08 if high_side == 1 else -0.08
         ax.plot([x0, x1], [ybar, ybar], color="gray", lw=3.2, solid_capstyle="butt")
 
-    ax.scatter(x[correct],  actions[correct],  s=28, color="#36a852", label="Correct",   zorder=3)
-    ax.scatter(x[~correct], actions[~correct], s=28, color="#9c1f1f", label="Incorrect", zorder=3)
+    ax.scatter(
+        x[correct], actions[correct], s=28, color="#36a852", label="Correct", zorder=3
+    )
+    ax.scatter(
+        x[~correct],
+        actions[~correct],
+        s=28,
+        color="#9c1f1f",
+        label="Incorrect",
+        zorder=3,
+    )
     ax.plot(x, p_right_smooth, color="#2f2f2f", lw=1.4, label="Average", zorder=2)
 
     ax.set_xlim(0.95, n_blocks + 1.0)
@@ -1195,11 +1289,33 @@ def plot_block_choice_panel(
     ax.set_ylabel("P(Right Choice)", fontsize=22)
 
     handles = [
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="#36a852", markersize=7, label="Correct"),
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="#9c1f1f", markersize=7, label="Incorrect"),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor="#36a852",
+            markersize=7,
+            label="Correct",
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor="#9c1f1f",
+            markersize=7,
+            label="Incorrect",
+        ),
         Line2D([0], [0], color="#2f2f2f", lw=1.6, label="Average"),
     ]
-    ax.legend(handles=handles, title="Choices", frameon=False, loc="center left", bbox_to_anchor=(1.01, 0.5))
+    ax.legend(
+        handles=handles,
+        title="Choices",
+        frameon=False,
+        loc="center left",
+        bbox_to_anchor=(1.01, 0.5),
+    )
     for spine in ["top", "right"]:
         ax.spines[spine].set_visible(False)
     ax.tick_params(axis="both", labelsize=12)
@@ -1209,8 +1325,8 @@ def plot_block_choice_panel(
 
 def _build_block_axis_from_trialdata(trialdata):
     """Return per-trial x-positions and block metadata derived from *trialdata*."""
-    valid_mask   = ~np.isnan(trialdata.response_time.to_numpy())
-    iblock       = trialdata.loc[valid_mask, "iblock"].to_numpy().astype(int)
+    valid_mask = ~np.isnan(trialdata.response_time.to_numpy())
+    iblock = trialdata.loc[valid_mask, "iblock"].to_numpy().astype(int)
     unique_blocks = np.unique(iblock)
     block_to_pos = {b: i + 1 for i, b in enumerate(unique_blocks)}
 
@@ -1221,7 +1337,7 @@ def _build_block_axis_from_trialdata(trialdata):
 
     x = np.zeros_like(iblock, dtype=float)
     for b in unique_blocks:
-        idx  = np.where(iblock == b)[0]
+        idx = np.where(iblock == b)[0]
         blen = len(idx)
         x[idx] = block_to_pos[b] + (np.arange(blen) + 1) / (blen + 1)
 
@@ -1234,9 +1350,9 @@ def _build_block_axis_from_trialdata(trialdata):
 def _draw_block_side_bars(ax, x, iblock, unique_blocks, block_right_target):
     """Draw gray bars above/below indicating which side has high reward probability."""
     for b in unique_blocks:
-        idx   = np.where(iblock == b)[0]
+        idx = np.where(iblock == b)[0]
         x0, x1 = x[idx[0]], x[idx[-1]]
-        ybar  = 1.08 if int(block_right_target[idx[0]]) == 1 else -0.08
+        ybar = 1.08 if int(block_right_target[idx[0]]) == 1 else -0.08
         ax.plot([x0, x1], [ybar, ybar], color="gray", lw=3.0, solid_capstyle="butt")
 
 
@@ -1253,26 +1369,46 @@ def plot_pright_animal_vs_model(
     ----------
     mode : ``"stacked"`` (two panels) or ``"overlay"`` (one panel).
     """
-    x, iblock, unique_blocks, block_right_target = _build_block_axis_from_trialdata(trialdata)
-    assert len(y_animal) == len(x) == len(y_model), "Animal/model vectors must match valid-trial length."
+    x, iblock, unique_blocks, block_right_target = _build_block_axis_from_trialdata(
+        trialdata
+    )
+    assert len(y_animal) == len(x) == len(y_model), (
+        "Animal/model vectors must match valid-trial length."
+    )
 
-    kernel     = np.ones(smooth_window, dtype=float) / float(smooth_window)
+    kernel = np.ones(smooth_window, dtype=float) / float(smooth_window)
     animal_avg = np.convolve(y_animal.astype(float), kernel, mode="same")
-    model_avg  = np.convolve(y_model.astype(float),  kernel, mode="same")
+    model_avg = np.convolve(y_model.astype(float), kernel, mode="same")
 
     animal_correct = y_animal == block_right_target
-    model_correct  = y_model  == block_right_target
+    model_correct = y_model == block_right_target
 
     if mode == "overlay":
         fig, ax = plt.subplots(1, 1, figsize=(12, 3.8))
         ax.set_facecolor("#e9e9e9")
         _draw_block_side_bars(ax, x, iblock, unique_blocks, block_right_target)
 
-        ax.scatter(x[animal_correct],  y_animal[animal_correct],  s=22, color="#36a852", alpha=0.8, zorder=3)
-        ax.scatter(x[~animal_correct], y_animal[~animal_correct], s=22, color="#9c1f1f", alpha=0.8, zorder=3)
+        ax.scatter(
+            x[animal_correct],
+            y_animal[animal_correct],
+            s=22,
+            color="#36a852",
+            alpha=0.8,
+            zorder=3,
+        )
+        ax.scatter(
+            x[~animal_correct],
+            y_animal[~animal_correct],
+            s=22,
+            color="#9c1f1f",
+            alpha=0.8,
+            zorder=3,
+        )
 
-        ax.plot(x, animal_avg, color="#2f2f2f", lw=1.8, label="Animal average", zorder=4)
-        ax.plot(x, model_avg,  color="#1f77b4", lw=1.8, label="Model average",  zorder=4)
+        ax.plot(
+            x, animal_avg, color="#2f2f2f", lw=1.8, label="Animal average", zorder=4
+        )
+        ax.plot(x, model_avg, color="#1f77b4", lw=1.8, label="Model average", zorder=4)
 
         block_positions = np.arange(1, len(unique_blocks) + 1)
         ax.set_xticks(block_positions + 0.5)
@@ -1284,12 +1420,34 @@ def plot_pright_animal_vs_model(
             ax.spines[spine].set_visible(False)
 
         handles = [
-            Line2D([0], [0], marker="o", color="w", markerfacecolor="#36a852", markersize=7, label="Animal Correct"),
-            Line2D([0], [0], marker="o", color="w", markerfacecolor="#9c1f1f", markersize=7, label="Animal Incorrect"),
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor="#36a852",
+                markersize=7,
+                label="Animal Correct",
+            ),
+            Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                markerfacecolor="#9c1f1f",
+                markersize=7,
+                label="Animal Incorrect",
+            ),
             Line2D([0], [0], color="#2f2f2f", lw=1.8, label="Animal average"),
             Line2D([0], [0], color="#1f77b4", lw=1.8, label="Model average"),
         ]
-        ax.legend(handles=handles, title="Choices", frameon=False, loc="center left", bbox_to_anchor=(1.01, 0.5))
+        ax.legend(
+            handles=handles,
+            title="Choices",
+            frameon=False,
+            loc="center left",
+            bbox_to_anchor=(1.01, 0.5),
+        )
         plt.tight_layout()
         plt.show()
         return
@@ -1298,15 +1456,29 @@ def plot_pright_animal_vs_model(
     fig, axes = plt.subplots(2, 1, figsize=(12, 6.4), sharex=True, sharey=True)
     panels = [
         ("Animal", y_animal, animal_avg, animal_correct),
-        ("Model",  y_model,  model_avg,  model_correct),
+        ("Model", y_model, model_avg, model_correct),
     ]
 
     for ax, (title, choices, avg, correct) in zip(axes, panels):
         ax.set_facecolor("#e9e9e9")
         _draw_block_side_bars(ax, x, iblock, unique_blocks, block_right_target)
 
-        ax.scatter(x[correct],  choices[correct],  s=28, color="#36a852", label="Correct",   zorder=3)
-        ax.scatter(x[~correct], choices[~correct], s=28, color="#9c1f1f", label="Incorrect", zorder=3)
+        ax.scatter(
+            x[correct],
+            choices[correct],
+            s=28,
+            color="#36a852",
+            label="Correct",
+            zorder=3,
+        )
+        ax.scatter(
+            x[~correct],
+            choices[~correct],
+            s=28,
+            color="#9c1f1f",
+            label="Incorrect",
+            zorder=3,
+        )
         ax.plot(x, avg, color="#2f2f2f", lw=1.5, label="Average", zorder=2)
 
         ax.set_ylabel("P(Right Choice)", fontsize=22)
@@ -1321,11 +1493,33 @@ def plot_pright_animal_vs_model(
     axes[-1].set_xlabel("Blocks", fontsize=20)
 
     handles = [
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="#36a852", markersize=7, label="Correct"),
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="#9c1f1f", markersize=7, label="Incorrect"),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor="#36a852",
+            markersize=7,
+            label="Correct",
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor="#9c1f1f",
+            markersize=7,
+            label="Incorrect",
+        ),
         Line2D([0], [0], color="#2f2f2f", lw=1.6, label="Average"),
     ]
-    axes[0].legend(handles=handles, title="Choices", frameon=False, loc="center left", bbox_to_anchor=(1.01, 0.5))
+    axes[0].legend(
+        handles=handles,
+        title="Choices",
+        frameon=False,
+        loc="center left",
+        bbox_to_anchor=(1.01, 0.5),
+    )
     plt.tight_layout()
     plt.show()
 
@@ -1388,29 +1582,38 @@ def plot_unit_trial_psth_overlays(
     model.eval()
     y_hat, _ = model(X_seq)
 
-    y_pred = y_hat[0].detach().cpu().numpy()   # [T, D]
-    y_true = Y_seq[0].detach().cpu().numpy()   # [T, D]
+    y_pred = y_hat[0].detach().cpu().numpy()  # [T, D]
+    y_true = Y_seq[0].detach().cpu().numpy()  # [T, D]
 
     n_units_total = int(meta[target_key]["n_units"])
-    n_bins        = int(meta[target_key]["n_timebins"])
-    T             = min(y_true.shape[0], y_pred.shape[0])
+    n_bins = int(meta[target_key]["n_timebins"])
+    T = min(y_true.shape[0], y_pred.shape[0])
 
     y_true = y_true[:T].reshape(T, n_units_total, n_bins)
     y_pred = y_pred[:T].reshape(T, n_units_total, n_bins)
 
     rng = np.random.default_rng(seed)
     if unit_ids is None:
-        unit_ids = np.sort(rng.choice(np.arange(n_units_total), size=min(n_units, n_units_total), replace=False))
+        unit_ids = np.sort(
+            rng.choice(
+                np.arange(n_units_total),
+                size=min(n_units, n_units_total),
+                replace=False,
+            )
+        )
     else:
         unit_ids = np.array(unit_ids, dtype=int)
 
     if trial_ids is None:
-        trial_ids = np.sort(rng.choice(np.arange(T), size=min(n_trials, T), replace=False))
+        trial_ids = np.sort(
+            rng.choice(np.arange(T), size=min(n_trials, T), replace=False)
+        )
     else:
         trial_ids = np.array(trial_ids, dtype=int)
 
     fig, axes = plt.subplots(
-        len(unit_ids), len(trial_ids),
+        len(unit_ids),
+        len(trial_ids),
         figsize=(3.2 * len(trial_ids), 2.5 * len(unit_ids)),
         sharex=True,
     )
@@ -1425,9 +1628,9 @@ def plot_unit_trial_psth_overlays(
     all_r2 = []
     for i, u in enumerate(unit_ids):
         for j, tr in enumerate(trial_ids):
-            ax  = axes[i, j]
-            y_t = y_true[tr, u, :]   # true PSTH for this unit × trial  [n_bins]
-            y_p = y_pred[tr, u, :]   # predicted PSTH                    [n_bins]
+            ax = axes[i, j]
+            y_t = y_true[tr, u, :]  # true PSTH for this unit × trial  [n_bins]
+            y_p = y_pred[tr, u, :]  # predicted PSTH                    [n_bins]
 
             # R² = 1 - SS_res / SS_tot.  When the true signal is nearly
             # constant (SS_tot ≈ 0), R² is undefined — do NOT stabilize the
@@ -1458,9 +1661,9 @@ def plot_unit_trial_psth_overlays(
                 ax.set_ylabel("Rate")
 
     valid_r2 = [v for v in all_r2 if not np.isnan(v)]
-    mean_r2  = np.mean(valid_r2) if valid_r2 else np.nan
-    n_valid  = len(valid_r2)
-    n_total  = len(all_r2)
+    mean_r2 = np.mean(valid_r2) if valid_r2 else np.nan
+    n_valid = len(valid_r2)
+    n_total = len(all_r2)
 
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper right", frameon=False)
@@ -1493,10 +1696,10 @@ def visualize_neural_predictions(
     y_true = Y_seq[0].detach().cpu().numpy()
 
     n_trials = int(meta[target_key]["n_trials"])
-    n_units  = int(meta[target_key]["n_units"])
-    n_bins   = int(meta[target_key]["n_timebins"])
+    n_units = int(meta[target_key]["n_units"])
+    n_bins = int(meta[target_key]["n_timebins"])
 
-    T      = min(n_trials, y_pred.shape[0], y_true.shape[0])
+    T = min(n_trials, y_pred.shape[0], y_true.shape[0])
     y_pred = y_pred[:T].reshape(T, n_units, n_bins)
     y_true = y_true[:T].reshape(T, n_units, n_bins)
 
@@ -1517,11 +1720,15 @@ def visualize_neural_predictions(
         vmax = np.percentile(np.concatenate([true_u.ravel(), pred_u.ravel()]), 99)
         vmin = np.percentile(np.concatenate([true_u.ravel(), pred_u.ravel()]), 1)
 
-        axes[row, 0].imshow(true_u, aspect="auto", origin="lower", vmin=vmin, vmax=vmax, cmap="viridis")
+        axes[row, 0].imshow(
+            true_u, aspect="auto", origin="lower", vmin=vmin, vmax=vmax, cmap="viridis"
+        )
         axes[row, 0].set_title(f"Unit {u} True")
         axes[row, 0].set_ylabel("Trial")
 
-        axes[row, 1].imshow(pred_u, aspect="auto", origin="lower", vmin=vmin, vmax=vmax, cmap="viridis")
+        axes[row, 1].imshow(
+            pred_u, aspect="auto", origin="lower", vmin=vmin, vmax=vmax, cmap="viridis"
+        )
         axes[row, 1].set_title(f"Unit {u} Pred")
 
         true_mean = np.mean(true_u, axis=0)

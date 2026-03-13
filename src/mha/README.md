@@ -4,9 +4,9 @@ This folder is a self-contained bundle to run attention-head sweeps on DMAT file
 
 ## Files
 
-- `mha_model_utils.py`  
+- `mha_model_utils.py`
   Attention model + training/eval helpers.
-- `run_mha_sweeps.py`  
+- `run_mha_sweeps.py`
   Sequential sweep runner:
   1. `20231211_172819` (`dmat-early.npz`)
   2. `20231225_123125` (`dmat-late.npz`)

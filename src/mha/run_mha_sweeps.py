@@ -27,14 +27,27 @@ from mha_model_utils import (
 
 SESSIONS = {
     "early": "20231211_172819",
-    "late":  "20231225_123125",
+    "late": "20231225_123125",
 }
 
-HP_KEYS = sorted([
-    "d_model", "n_heads", "n_layers", "ff_mult", "dropout",
-    "use_positional_encoding", "attention_type", "attn_window",
-    "epochs", "batch_size", "lr", "weight_decay", "grad_clip", "patience",
-])
+HP_KEYS = sorted(
+    [
+        "d_model",
+        "n_heads",
+        "n_layers",
+        "ff_mult",
+        "dropout",
+        "use_positional_encoding",
+        "attention_type",
+        "attn_window",
+        "epochs",
+        "batch_size",
+        "lr",
+        "weight_decay",
+        "grad_clip",
+        "patience",
+    ]
+)
 
 
 def _hp_fingerprint(cfg: Dict[str, Any]) -> str:
@@ -96,7 +109,9 @@ def generate_attention_search_configs(
 
     if existing_fingerprints:
         before = len(configs)
-        configs = [c for c in configs if _hp_fingerprint(c) not in existing_fingerprints]
+        configs = [
+            c for c in configs if _hp_fingerprint(c) not in existing_fingerprints
+        ]
         skipped = before - len(configs)
         if skipped:
             print(f"Skipped {skipped} already-completed configs")
@@ -124,7 +139,9 @@ def load_dmat_timecourse(session: str, repo_root: Path, bins_per_trial: int = 29
     if x.shape[0] != y.shape[0]:
         raise ValueError(f"X/Y row mismatch: {x.shape[0]} vs {y.shape[0]}")
     if x.shape[0] % bins_per_trial != 0:
-        raise ValueError(f"Rows {x.shape[0]} not divisible by bins_per_trial={bins_per_trial}.")
+        raise ValueError(
+            f"Rows {x.shape[0]} not divisible by bins_per_trial={bins_per_trial}."
+        )
     n_trials = x.shape[0] // bins_per_trial
     return (
         x.reshape(n_trials, bins_per_trial, x.shape[1]),
@@ -144,7 +161,11 @@ def run_custom_sweep(configs, run_config_fn, results_csv, static_fields=None):
         run_id = str(uuid.uuid4())[:8]
         model_type = cfg.get("model_type", "custom")
         task_type = cfg.get("task_type", "neural")
-        hp_summary = ", ".join(f"{k}={v}" for k, v in sorted(cfg.items()) if k not in ("model_type", "task_type"))
+        hp_summary = ", ".join(
+            f"{k}={v}"
+            for k, v in sorted(cfg.items())
+            if k not in ("model_type", "task_type")
+        )
         print(f"\n{'=' * 80}")
         print(f"Run {i}/{n_total}: {model_type} {task_type} | {hp_summary}")
         print(f"{'=' * 80}")
@@ -155,10 +176,14 @@ def run_custom_sweep(configs, run_config_fn, results_csv, static_fields=None):
         except Exception as e:
             print(f"Run {i}/{n_total} FAILED: {e}")
             results = {
-                "loss_hist": [], "metric_hist": [],
-                "best_metric": float("nan"), "best_epoch": 0,
-                "final_metric": float("nan"), "final_loss": float("nan"),
-                "elapsed_sec": 0.0, "error": str(e),
+                "loss_hist": [],
+                "metric_hist": [],
+                "best_metric": float("nan"),
+                "best_epoch": 0,
+                "final_metric": float("nan"),
+                "final_loss": float("nan"),
+                "elapsed_sec": 0.0,
+                "error": str(e),
             }
 
         row = {
@@ -166,7 +191,8 @@ def run_custom_sweep(configs, run_config_fn, results_csv, static_fields=None):
             "timestamp": datetime.now().isoformat(),
             "model_type": model_type,
             "task_type": task_type,
-            **common, **cfg,
+            **common,
+            **cfg,
             "best_metric": results["best_metric"],
             "best_epoch": results["best_epoch"],
             "final_metric": results["final_metric"],
@@ -189,7 +215,9 @@ def run_custom_sweep(configs, run_config_fn, results_csv, static_fields=None):
         )
         print(f"(saved to {results_csv})")
 
-    print(f"\nSweep complete. {results_csv} now has {len(pd.read_csv(results_path))} total rows.")
+    print(
+        f"\nSweep complete. {results_csv} now has {len(pd.read_csv(results_path))} total rows."
+    )
     return pd.DataFrame(rows)
 
 
@@ -217,7 +245,9 @@ def run_session(
     session = SESSIONS[session_label]
     results_csv = str(results_dir / f"sweep_{session_label}.csv")
 
-    x_trials, y_trials, used_dmat_path = load_dmat_timecourse(session, repo_root=repo_root)
+    x_trials, y_trials, used_dmat_path = load_dmat_timecourse(
+        session, repo_root=repo_root
+    )
     print(f"\n{'=' * 100}")
     print(f"SESSION: {session_label} ({session})")
     print("=" * 100)
@@ -261,7 +291,8 @@ def run_session(
 
     def run_mha_config(cfg):
         train_loader, val_loader = make_trialwise_dataloaders(
-            x_trials, y_trials,
+            x_trials,
+            y_trials,
             val_fraction=val_fraction,
             min_val_trials=min_val_trials,
             batch_size=int(cfg["batch_size"]),
@@ -276,7 +307,9 @@ def run_session(
             dropout=float(cfg["dropout"]),
             use_positional_encoding=bool(cfg["use_positional_encoding"]),
             attention_type=str(cfg["attention_type"]),
-            attn_window=None if cfg.get("attn_window") is None else int(cfg["attn_window"]),
+            attn_window=None
+            if cfg.get("attn_window") is None
+            else int(cfg["attn_window"]),
         )
         t0 = time.perf_counter()
         out = train_attention_regressor(
@@ -293,7 +326,9 @@ def run_session(
         )
         elapsed = time.perf_counter() - t0
         hist = out["history"]
-        metric_hist = hist["val_pearson_r"] if hist["val_pearson_r"] else hist["train_pearson_r"]
+        metric_hist = (
+            hist["val_pearson_r"] if hist["val_pearson_r"] else hist["train_pearson_r"]
+        )
         loss_hist = hist["val_loss"] if hist["val_loss"] else hist["train_loss"]
         return {
             "loss_hist": [float(x) for x in loss_hist],
@@ -321,10 +356,16 @@ def run_session(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Vanilla MHA sweep (early or late session)")
+    parser = argparse.ArgumentParser(
+        description="Vanilla MHA sweep (early or late session)"
+    )
     parser.add_argument("--session", choices=["early", "late", "both"], default="both")
-    parser.add_argument("--repo-root", default=".", help="Repo root containing data/ and results/")
-    parser.add_argument("--max-configs", type=int, default=25, help="Max new configs per session")
+    parser.add_argument(
+        "--repo-root", default=".", help="Repo root containing data/ and results/"
+    )
+    parser.add_argument(
+        "--max-configs", type=int, default=25, help="Max new configs per session"
+    )
     parser.add_argument("--device", choices=["cuda", "mps", "cpu"], default=None)
     parser.add_argument("--results-dir", default="results/mha_vanilla")
     parser.add_argument("--print-every", type=int, default=10)

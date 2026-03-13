@@ -54,10 +54,10 @@ BEST_CONFIGS = {
 
 SWEEP_RESULTS = {
     "early": "results/vanilla_rnn/sweep_early.csv",
-    "late":  "results/vanilla_rnn/sweep_late.csv",
+    "late": "results/vanilla_rnn/sweep_late.csv",
 }
 
 BEST_CONFIG_RESULTS = {
     "early": "results/best_configs/vanilla_rnn_early.csv",
-    "late":  "results/best_configs/vanilla_rnn_late.csv",
+    "late": "results/best_configs/vanilla_rnn_late.csv",
 }

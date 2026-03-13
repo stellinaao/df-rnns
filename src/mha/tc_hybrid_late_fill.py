@@ -2,6 +2,7 @@
 
 Configs are sampled from the HP pool of the best-performing runs.
 """
+
 import sys
 from pathlib import Path
 
@@ -9,7 +10,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "src" / "mha"))
 
-from run_mha_trial_context_sweeps import (
+from run_mha_trial_context_sweeps import (  # noqa: E402
     load_dmat_timecourse,
     extract_trial_features,
     make_trial_context_dataloaders,
@@ -17,10 +18,10 @@ from run_mha_trial_context_sweeps import (
     train_attention_regressor,
     run_custom_sweep,
 )
-import time
-import numpy as np
-import torch
-import random
+import time  # noqa: E402
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
+import random  # noqa: E402
 
 SEED = 99
 random.seed(SEED)
@@ -35,37 +36,125 @@ MIN_VAL_TRIALS = 50
 RESULTS_CSV = str(REPO / "results" / "mha_trial_context_hybrid" / "sweep_late.csv")
 
 NEW_CONFIGS = [
-    {"lr": 0.001, "weight_decay": 0.0001, "dropout": 0.1, "d_model": 128, "n_heads": 1,
-     "n_layers": 1, "ff_mult": 2, "batch_size": 16, "grad_clip": 2.0,
-     "trial_context_len": 10, "use_positional_encoding": False, "attention_type": "causal",
-     "attn_window": None, "trial_attention_type": "causal", "epochs": 250, "patience": 20},
-    {"lr": 0.001, "weight_decay": 0.0, "dropout": 0.2, "d_model": 128, "n_heads": 2,
-     "n_layers": 2, "ff_mult": 2, "batch_size": 16, "grad_clip": 2.0,
-     "trial_context_len": 10, "use_positional_encoding": True, "attention_type": "full",
-     "attn_window": None, "trial_attention_type": "causal", "epochs": 250, "patience": 20},
-    {"lr": 0.0005, "weight_decay": 0.0, "dropout": 0.2, "d_model": 256, "n_heads": 2,
-     "n_layers": 1, "ff_mult": 4, "batch_size": 64, "grad_clip": 1.0,
-     "trial_context_len": 5, "use_positional_encoding": True, "attention_type": "full",
-     "attn_window": None, "trial_attention_type": "causal", "epochs": 250, "patience": 20},
-    {"lr": 0.0005, "weight_decay": 0.0001, "dropout": 0.1, "d_model": 256, "n_heads": 1,
-     "n_layers": 2, "ff_mult": 2, "batch_size": 16, "grad_clip": 1.0,
-     "trial_context_len": 10, "use_positional_encoding": False, "attention_type": "causal",
-     "attn_window": None, "trial_attention_type": "causal", "epochs": 250, "patience": 20},
-    {"lr": 0.0005, "weight_decay": 0.0, "dropout": 0.1, "d_model": 128, "n_heads": 1,
-     "n_layers": 2, "ff_mult": 4, "batch_size": 16, "grad_clip": 2.0,
-     "trial_context_len": 10, "use_positional_encoding": True, "attention_type": "causal",
-     "attn_window": None, "trial_attention_type": "causal", "epochs": 250, "patience": 20},
-    {"lr": 0.001, "weight_decay": 0.0, "dropout": 0.2, "d_model": 256, "n_heads": 1,
-     "n_layers": 2, "ff_mult": 2, "batch_size": 16, "grad_clip": 1.0,
-     "trial_context_len": 5, "use_positional_encoding": False, "attention_type": "full",
-     "attn_window": None, "trial_attention_type": "causal", "epochs": 250, "patience": 20},
+    {
+        "lr": 0.001,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "d_model": 128,
+        "n_heads": 1,
+        "n_layers": 1,
+        "ff_mult": 2,
+        "batch_size": 16,
+        "grad_clip": 2.0,
+        "trial_context_len": 10,
+        "use_positional_encoding": False,
+        "attention_type": "causal",
+        "attn_window": None,
+        "trial_attention_type": "causal",
+        "epochs": 250,
+        "patience": 20,
+    },
+    {
+        "lr": 0.001,
+        "weight_decay": 0.0,
+        "dropout": 0.2,
+        "d_model": 128,
+        "n_heads": 2,
+        "n_layers": 2,
+        "ff_mult": 2,
+        "batch_size": 16,
+        "grad_clip": 2.0,
+        "trial_context_len": 10,
+        "use_positional_encoding": True,
+        "attention_type": "full",
+        "attn_window": None,
+        "trial_attention_type": "causal",
+        "epochs": 250,
+        "patience": 20,
+    },
+    {
+        "lr": 0.0005,
+        "weight_decay": 0.0,
+        "dropout": 0.2,
+        "d_model": 256,
+        "n_heads": 2,
+        "n_layers": 1,
+        "ff_mult": 4,
+        "batch_size": 64,
+        "grad_clip": 1.0,
+        "trial_context_len": 5,
+        "use_positional_encoding": True,
+        "attention_type": "full",
+        "attn_window": None,
+        "trial_attention_type": "causal",
+        "epochs": 250,
+        "patience": 20,
+    },
+    {
+        "lr": 0.0005,
+        "weight_decay": 0.0001,
+        "dropout": 0.1,
+        "d_model": 256,
+        "n_heads": 1,
+        "n_layers": 2,
+        "ff_mult": 2,
+        "batch_size": 16,
+        "grad_clip": 1.0,
+        "trial_context_len": 10,
+        "use_positional_encoding": False,
+        "attention_type": "causal",
+        "attn_window": None,
+        "trial_attention_type": "causal",
+        "epochs": 250,
+        "patience": 20,
+    },
+    {
+        "lr": 0.0005,
+        "weight_decay": 0.0,
+        "dropout": 0.1,
+        "d_model": 128,
+        "n_heads": 1,
+        "n_layers": 2,
+        "ff_mult": 4,
+        "batch_size": 16,
+        "grad_clip": 2.0,
+        "trial_context_len": 10,
+        "use_positional_encoding": True,
+        "attention_type": "causal",
+        "attn_window": None,
+        "trial_attention_type": "causal",
+        "epochs": 250,
+        "patience": 20,
+    },
+    {
+        "lr": 0.001,
+        "weight_decay": 0.0,
+        "dropout": 0.2,
+        "d_model": 256,
+        "n_heads": 1,
+        "n_layers": 2,
+        "ff_mult": 2,
+        "batch_size": 16,
+        "grad_clip": 1.0,
+        "trial_context_len": 5,
+        "use_positional_encoding": False,
+        "attention_type": "full",
+        "attn_window": None,
+        "trial_attention_type": "causal",
+        "epochs": 250,
+        "patience": 20,
+    },
 ]
 
 for c in NEW_CONFIGS:
     c["model_type"] = "trial_context_attention"
     c["task_type"] = "neural"
 
-device = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+device = (
+    "cuda"
+    if torch.cuda.is_available()
+    else ("mps" if torch.backends.mps.is_available() else "cpu")
+)
 print(f"Device: {device}")
 
 x_trials, y_trials, dmat_path = load_dmat_timecourse(SESSION, repo_root=REPO)
@@ -77,7 +166,8 @@ print(f"Data: X={x_trials.shape}, Y={y_trials.shape}, z={z_trials.shape}")
 def run_tc_config(cfg):
     trial_context_len = int(cfg.get("trial_context_len", 1))
     train_loader, val_loader = make_trial_context_dataloaders(
-        x_trials, y_trials,
+        x_trials,
+        y_trials,
         trial_context_len=trial_context_len,
         val_fraction=VAL_FRACTION,
         min_val_trials=MIN_VAL_TRIALS,
@@ -116,7 +206,9 @@ def run_tc_config(cfg):
     )
     elapsed = time.perf_counter() - t0
     hist = out["history"]
-    metric_hist = hist["val_pearson_r"] if hist["val_pearson_r"] else hist["train_pearson_r"]
+    metric_hist = (
+        hist["val_pearson_r"] if hist["val_pearson_r"] else hist["train_pearson_r"]
+    )
     loss_hist = hist["val_loss"] if hist["val_loss"] else hist["train_loss"]
     return {
         "loss_hist": [float(x) for x in loss_hist],

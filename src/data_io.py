@@ -10,11 +10,12 @@ an explicit ``data_root`` argument instead of hard-coded absolute paths.
 External requirement: the ``spks`` package (``pip install spks``) for
 ``spks.event_aligned.compute_firing_rate``.
 """
+
 from __future__ import annotations
 
 import pickle
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -24,14 +25,14 @@ import pandas as pd
 # Session / file discovery
 # ---------------------------------------------------------------------------
 
+
 def get_animal_sessions(data_root: str | Path, animal_name: str) -> List[str]:
     """Return a sorted list of all session directories for *animal_name*."""
     animal_dir = Path(data_root) / animal_name
     if not animal_dir.exists():
         return []
     return sorted(
-        d.name for d in animal_dir.iterdir()
-        if d.is_dir() and d.name[:4].isdigit()
+        d.name for d in animal_dir.iterdir() if d.is_dir() and d.name[:4].isdigit()
     )
 
 
@@ -43,7 +44,8 @@ def get_available_probes(
     """Return which probe pickle files exist for a session."""
     session_dir = Path(data_root) / animal_name / session
     return [
-        p for p in ("imec0", "imec1", "imec2")
+        p
+        for p in ("imec0", "imec1", "imec2")
         if (session_dir / f"{p}_neural_data.pkl").exists()
     ]
 
@@ -51,6 +53,7 @@ def get_available_probes(
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
+
 
 def load_session_data(
     data_root: str | Path,
@@ -110,15 +113,26 @@ def load_session_data(
     brain_regions = animal_data[f"{probe}_regions"]
 
     return (
-        riglog, corrected_onsets, trialdata, neural_data, animal_data,
-        session_data, sc, st, srate, frame_rate, apsyncdata,
-        unit_ids_dict, brain_regions,
+        riglog,
+        corrected_onsets,
+        trialdata,
+        neural_data,
+        animal_data,
+        session_data,
+        sc,
+        st,
+        srate,
+        frame_rate,
+        apsyncdata,
+        unit_ids_dict,
+        brain_regions,
     )
 
 
 # ---------------------------------------------------------------------------
 # Spike-time helpers
 # ---------------------------------------------------------------------------
+
 
 def get_cluster_spike_times(spike_times, spike_clusters, good_unit_ids):
     """Return a list of spike-time arrays, one per good unit."""
@@ -131,6 +145,7 @@ def get_cluster_spike_times(spike_times, spike_clusters, good_unit_ids):
 # ---------------------------------------------------------------------------
 # Trial-timestamp extraction
 # ---------------------------------------------------------------------------
+
 
 def get_trial_timestamps(
     trialdata,
@@ -189,6 +204,7 @@ def get_trial_timestamps(
 # ---------------------------------------------------------------------------
 # Label vectorisation
 # ---------------------------------------------------------------------------
+
 
 def _previous_reward_vector(reward_vector: np.ndarray) -> np.ndarray:
     """Shift *reward_vector* right by one, padding with 0."""

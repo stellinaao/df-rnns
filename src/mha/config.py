@@ -121,21 +121,21 @@ BEST_CONFIGS = {
 SWEEP_RESULTS = {
     "mha_vanilla": {
         "early": "results/mha_vanilla/sweep_early.csv",
-        "late":  "results/mha_vanilla/sweep_late.csv",
+        "late": "results/mha_vanilla/sweep_late.csv",
     },
     "tc_hybrid": {
         "early": "results/mha_trial_context_hybrid/sweep_early.csv",
-        "late":  "results/mha_trial_context_hybrid/sweep_late.csv",
+        "late": "results/mha_trial_context_hybrid/sweep_late.csv",
     },
 }
 
 BEST_CONFIG_RESULTS = {
     "mha_vanilla": {
         "early": "results/best_configs/mha_vanilla_early.csv",
-        "late":  "results/best_configs/mha_vanilla_late.csv",
+        "late": "results/best_configs/mha_vanilla_late.csv",
     },
     "tc_hybrid": {
         "early": "results/best_configs/tc_hybrid_early.csv",
-        "late":  "results/best_configs/tc_hybrid_late.csv",
+        "late": "results/best_configs/tc_hybrid_late.csv",
     },
 }
