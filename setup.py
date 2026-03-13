@@ -5,7 +5,7 @@ setup(
     author="Stellina Ao",
     author_email="stellina@ucla.edu",
     description="Fitting various RNNs to corticostriatal circuit activity during a dynamic foraging task.",
-    long_description=open('README.md').read(),
+    long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     python_requires=">=3.9",
     classifiers=[
@@ -19,5 +19,5 @@ setup(
     package_dir={"": "src"},
     include_package_data=True,
     url="https://github.com/stellinaao/df-rnns",
-    version="0.0.1" 
+    version="0.0.1",
 )

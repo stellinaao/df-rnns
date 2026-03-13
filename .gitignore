@@ -21,3 +21,4 @@ scripts/checkpoints/
 *.pkl
 *.json
 *.pt
+.vscode
