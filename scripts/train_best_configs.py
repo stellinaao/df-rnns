@@ -30,7 +30,7 @@ MIN_VAL_TRIALS = 50
 
 SESSIONS = {
     "early": {"id": "20231211_172819", "dmat": "dmat-early.npz"},
-    "late":  {"id": "20231225_123125", "dmat": "dmat-late.npz"},
+    "late": {"id": "20231225_123125", "dmat": "dmat-late.npz"},
 }
 
 BEST_CONFIGS = [
@@ -313,7 +313,8 @@ def train_tc_hybrid(entry, device):
 
     trial_context_len = int(cfg.get("trial_context_len", 1))
     train_loader, val_loader = make_trial_context_dataloaders(
-        x_trials, y_trials,
+        x_trials,
+        y_trials,
         trial_context_len=trial_context_len,
         val_fraction=VAL_FRACTION,
         min_val_trials=MIN_VAL_TRIALS,
@@ -356,7 +357,9 @@ def train_tc_hybrid(entry, device):
     )
     elapsed = time.perf_counter() - t0
     hist = out["history"]
-    metric_hist = hist["val_pearson_r"] if hist["val_pearson_r"] else hist["train_pearson_r"]
+    metric_hist = (
+        hist["val_pearson_r"] if hist["val_pearson_r"] else hist["train_pearson_r"]
+    )
     loss_hist = hist["val_loss"] if hist["val_loss"] else hist["train_loss"]
 
     return {
@@ -375,7 +378,6 @@ def train_tc_hybrid(entry, device):
     }
 
 
-
 def train_mha_vanilla(entry, device):
     from mha_model_utils import (
         NeuralAttentionRegressor,
@@ -389,7 +391,8 @@ def train_mha_vanilla(entry, device):
     x_trials, y_trials, dmat_path = load_dmat(session_label)
 
     train_loader, val_loader = make_trialwise_dataloaders(
-        x_trials, y_trials,
+        x_trials,
+        y_trials,
         val_fraction=VAL_FRACTION,
         min_val_trials=MIN_VAL_TRIALS,
         batch_size=int(cfg["batch_size"]),
@@ -425,7 +428,9 @@ def train_mha_vanilla(entry, device):
     )
     elapsed = time.perf_counter() - t0
     hist = out["history"]
-    metric_hist = hist["val_pearson_r"] if hist["val_pearson_r"] else hist["train_pearson_r"]
+    metric_hist = (
+        hist["val_pearson_r"] if hist["val_pearson_r"] else hist["train_pearson_r"]
+    )
     loss_hist = hist["val_loss"] if hist["val_loss"] else hist["train_loss"]
 
     return {
@@ -449,7 +454,9 @@ def train_gru(entry, device):
     from scipy.stats import pearsonr
     from torch.utils.data import TensorDataset, DataLoader
 
-    spec = importlib.util.spec_from_file_location("gru_model", str(REPO_ROOT / "src" / "gru" / "model.py"))
+    spec = importlib.util.spec_from_file_location(
+        "gru_model", str(REPO_ROOT / "src" / "gru" / "model.py")
+    )
     gru_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gru_mod)
     RateGRU = gru_mod.RateGRU
@@ -474,7 +481,9 @@ def train_gru(entry, device):
     optimizer = torch.optim.AdamW(model.parameters(), lr=float(cfg["learning_rate"]))
     criterion = torch.nn.MSELoss()
 
-    train_loader = DataLoader(TensorDataset(x_tr_t, y_tr_t), batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(
+        TensorDataset(x_tr_t, y_tr_t), batch_size=batch_size, shuffle=False
+    )
     val_loader = DataLoader(TensorDataset(x_val_t, y_val_t), batch_size=batch_size)
 
     print(f"  Model params: {sum(p.numel() for p in model.parameters()):,}")
@@ -503,7 +512,7 @@ def train_gru(entry, device):
         for xb, yb in train_loader:
             optimizer.zero_grad()
             if h is not None and h.size(1) != xb.size(0):
-                h = h[:, :xb.size(0), :].contiguous()
+                h = h[:, : xb.size(0), :].contiguous()
             out, h = model(xb, h)
             loss = criterion(out, yb)
             loss.backward()
@@ -528,7 +537,9 @@ def train_gru(entry, device):
             best_epoch = epoch
 
         if (epoch + 1) % PRINT_EVERY == 0:
-            print(f"  (Epoch {epoch}/{EPOCHS}) train r2: {train_r2:.3f}; val r2: {val_r2:.3f}; loss: {val_loss_hist[-1]:.4f}")
+            print(
+                f"  (Epoch {epoch}/{EPOCHS}) train r2: {train_r2:.3f}; val r2: {val_r2:.3f}; loss: {val_loss_hist[-1]:.4f}"
+            )
 
     elapsed = time.perf_counter() - t0
 
@@ -559,15 +570,19 @@ DISPATCH = {
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--filter", nargs="+", default=None,
-                        help="Only run configs whose label contains one of these substrings")
+    parser.add_argument(
+        "--filter",
+        nargs="+",
+        default=None,
+        help="Only run configs whose label contains one of these substrings",
+    )
     args = parser.parse_args()
 
     configs = BEST_CONFIGS
     if args.filter:
-        configs = [c for c in configs
-                   if any(f in c["label"] for f in args.filter)]
+        configs = [c for c in configs if any(f in c["label"] for f in args.filter)]
 
     device = pick_device()
     print(f"Device: {device} | Torch: {torch.__version__}")
@@ -587,8 +602,11 @@ def main():
         print(f"\n{'#' * 100}")
         print(f"  [{i}/{len(configs)}] {label}")
         print(f"  model_type={model_type}  session={session_label}")
-        hp_str = ", ".join(f"{k}={v}" for k, v in sorted(cfg.items())
-                          if k not in ("model_type", "task_type"))
+        hp_str = ", ".join(
+            f"{k}={v}"
+            for k, v in sorted(cfg.items())
+            if k not in ("model_type", "task_type")
+        )
         print(f"  HPs: {hp_str}")
         print(f"{'#' * 100}")
 
@@ -599,14 +617,21 @@ def main():
         except Exception as e:
             print(f"  FAILED: {e}")
             import traceback
+
             traceback.print_exc()
             results = {
-                "best_metric": float("nan"), "best_epoch": 0,
-                "final_metric": float("nan"), "final_loss": float("nan"),
-                "elapsed_sec": 0.0, "error": str(e),
-                "loss_hist": [], "metric_hist": [],
-                "train_loss_hist": [], "train_metric_hist": [],
-                "val_loss_hist": [], "val_metric_hist": [],
+                "best_metric": float("nan"),
+                "best_epoch": 0,
+                "final_metric": float("nan"),
+                "final_loss": float("nan"),
+                "elapsed_sec": 0.0,
+                "error": str(e),
+                "loss_hist": [],
+                "metric_hist": [],
+                "train_loss_hist": [],
+                "train_metric_hist": [],
+                "val_loss_hist": [],
+                "val_metric_hist": [],
             }
 
         csv_path = results_dir / f"{label}.csv"
@@ -633,7 +658,9 @@ def main():
         }
         pd.DataFrame([row]).to_csv(csv_path, index=False)
 
-        print(f"\n  >>> best_metric={results['best_metric']:.4f} @ epoch {results['best_epoch']}")
+        print(
+            f"\n  >>> best_metric={results['best_metric']:.4f} @ epoch {results['best_epoch']}"
+        )
         print(f"  >>> final_metric={results['final_metric']:.4f}")
         print(f"  >>> elapsed={results.get('elapsed_sec', 0):.1f}s")
         print(f"  >>> saved to {csv_path}")

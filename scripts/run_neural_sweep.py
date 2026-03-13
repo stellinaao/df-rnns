@@ -51,18 +51,37 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Neural target key (default: first available from create_neural_targets_from_psth)",
     )
-    p.add_argument("--max-configs", type=int, default=20, help="Configs per architecture")
+    p.add_argument(
+        "--max-configs", type=int, default=20, help="Configs per architecture"
+    )
     p.add_argument("--seed", type=int, default=42, help="Random seed")
-    p.add_argument("--patience", type=int, default=200, help="Early-stopping patience (vanilla RNN)")
-    p.add_argument("--lstm-patience", type=int, default=50, help="Early-stopping patience for LSTM (shorter due to overfitting tendency)")
-    p.add_argument("--print-every", type=int, default=100, help="Training print interval")
+    p.add_argument(
+        "--patience",
+        type=int,
+        default=200,
+        help="Early-stopping patience (vanilla RNN)",
+    )
+    p.add_argument(
+        "--lstm-patience",
+        type=int,
+        default=50,
+        help="Early-stopping patience for LSTM (shorter due to overfitting tendency)",
+    )
+    p.add_argument(
+        "--print-every", type=int, default=100, help="Training print interval"
+    )
     p.add_argument(
         "--sampling-mode",
         choices=["random", "refine"],
         default="refine",
         help="Config sampling strategy",
     )
-    p.add_argument("--top-k-refine", type=int, default=200, help="Top historical runs for refine mode")
+    p.add_argument(
+        "--top-k-refine",
+        type=int,
+        default=200,
+        help="Top historical runs for refine mode",
+    )
     p.add_argument(
         "--explore-fraction",
         type=float,
@@ -110,7 +129,11 @@ def main() -> None:
     if str(src) not in sys.path:
         sys.path.insert(0, str(src))
 
-    from sweep import generate_refined_search_configs, generate_search_configs, run_sweep
+    from sweep import (
+        generate_refined_search_configs,
+        generate_search_configs,
+        run_sweep,
+    )
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -120,9 +143,17 @@ def main() -> None:
     print(f"Using device: {device}")
 
     data_root = Path(args.data_root).expanduser().resolve()
-    dmat_path = Path(args.dmat_path).expanduser().resolve() if args.dmat_path else (repo / "data" / "dmat-early.npz")
+    dmat_path = (
+        Path(args.dmat_path).expanduser().resolve()
+        if args.dmat_path
+        else (repo / "data" / "dmat-early.npz")
+    )
 
-    results_dir = Path(args.results_dir).expanduser().resolve() if args.results_dir else (repo / "results")
+    results_dir = (
+        Path(args.results_dir).expanduser().resolve()
+        if args.results_dir
+        else (repo / "results")
+    )
     results_dir.mkdir(parents=True, exist_ok=True)
     results_csv_by_arch = {
         "vanilla_rnn": str(results_dir / "sweep_results_vanilla_rnn.csv"),
@@ -139,7 +170,9 @@ def main() -> None:
             f"DMAT X/Y row mismatch: X rows={x_dmat.shape[0]} vs Y rows={y_dmat.shape[0]}. "
             "Cannot align input/output."
         )
-    print(f"Using DMAT formatted targets: X shape={tuple(x_dmat.shape)}, Y shape={tuple(y_dmat.shape)}")
+    print(
+        f"Using DMAT formatted targets: X shape={tuple(x_dmat.shape)}, Y shape={tuple(y_dmat.shape)}"
+    )
 
     if x_dmat.ndim == 2:
         n_rows, n_regressors = x_dmat.shape
@@ -180,14 +213,25 @@ def main() -> None:
             f"(targets, bins, trials)=({y_predictors}, {y_bins}, {y_trials})."
         )
     else:
-        raise ValueError(f"Unsupported DMAT X shape {x_dmat.shape}; expected 2D or 3D array.")
+        raise ValueError(
+            f"Unsupported DMAT X shape {x_dmat.shape}; expected 2D or 3D array."
+        )
 
-    if x_dmat_reshaped.shape[0] != y_dmat_reshaped.shape[0] or x_dmat_reshaped.shape[1] != y_dmat_reshaped.shape[1]:
+    if (
+        x_dmat_reshaped.shape[0] != y_dmat_reshaped.shape[0]
+        or x_dmat_reshaped.shape[1] != y_dmat_reshaped.shape[1]
+    ):
         raise RuntimeError(
             f"Reshaped DMAT X/Y misaligned: X={tuple(x_dmat_reshaped.shape)} vs Y={tuple(y_dmat_reshaped.shape)}"
         )
-    if x_dmat_reshaped.shape[-1] <= 0 or y_dmat_reshaped.shape[-1] <= 0 or x_dmat_reshaped.shape[1] <= 0:
-        raise RuntimeError(f"Invalid reshaped DMAT dimensions: X={tuple(x_dmat_reshaped.shape)}, Y={tuple(y_dmat_reshaped.shape)}")
+    if (
+        x_dmat_reshaped.shape[-1] <= 0
+        or y_dmat_reshaped.shape[-1] <= 0
+        or x_dmat_reshaped.shape[1] <= 0
+    ):
+        raise RuntimeError(
+            f"Invalid reshaped DMAT dimensions: X={tuple(x_dmat_reshaped.shape)}, Y={tuple(y_dmat_reshaped.shape)}"
+        )
 
     # Option 2: use full within-trial time course from DMAT X/Y.
     # Keep (n_trials, n_bins, features/targets) so semantics match GRU-style setup.
@@ -196,7 +240,9 @@ def main() -> None:
     target_key = "dmat_Y_timecourse"
     n_trials = int(x_neural_trials.shape[0])
     if n_trials < 2:
-        raise RuntimeError(f"Need at least 2 aligned trials for train/validation split, got {n_trials}.")
+        raise RuntimeError(
+            f"Need at least 2 aligned trials for train/validation split, got {n_trials}."
+        )
 
     if not (0.0 <= args.val_fraction < 1.0):
         raise ValueError("--val-fraction must be in [0, 1).")
@@ -205,21 +251,39 @@ def main() -> None:
         n_val = max(args.min_val_trials, int(round(n_trials * args.val_fraction)))
         n_val = min(max(1, n_val), n_trials - 1)
         train_end = n_trials - n_val
-        x_train_trials, y_train_trials = x_neural_trials[:train_end], y_neural_trials[:train_end]
-        x_val_trials, y_val_trials = x_neural_trials[train_end:], y_neural_trials[train_end:]
+        x_train_trials, y_train_trials = (
+            x_neural_trials[:train_end],
+            y_neural_trials[:train_end],
+        )
+        x_val_trials, y_val_trials = (
+            x_neural_trials[train_end:],
+            y_neural_trials[train_end:],
+        )
     else:
         x_train_trials, y_train_trials = x_neural_trials, y_neural_trials
         x_val_trials, y_val_trials = None, None
 
     x_train_torch = torch.tensor(x_train_trials, dtype=torch.float32, device=device)
     y_train_torch = torch.tensor(y_train_trials, dtype=torch.float32, device=device)
-    x_val_torch = torch.tensor(x_val_trials, dtype=torch.float32, device=device) if x_val_trials is not None else None
-    y_val_torch = torch.tensor(y_val_trials, dtype=torch.float32, device=device) if y_val_trials is not None else None
+    x_val_torch = (
+        torch.tensor(x_val_trials, dtype=torch.float32, device=device)
+        if x_val_trials is not None
+        else None
+    )
+    y_val_torch = (
+        torch.tensor(y_val_trials, dtype=torch.float32, device=device)
+        if y_val_trials is not None
+        else None
+    )
 
     print(
         f"DMAT timecourse tensors ({n_bins_per_trial} bins/trial): "
         f"train X={tuple(x_train_torch.shape)}, train Y={tuple(y_train_torch.shape)}"
-        + (f", val X={tuple(x_val_torch.shape)}, val Y={tuple(y_val_torch.shape)}" if x_val_torch is not None else "")
+        + (
+            f", val X={tuple(x_val_torch.shape)}, val Y={tuple(y_val_torch.shape)}"
+            if x_val_torch is not None
+            else ""
+        )
     )
 
     session_date = args.session.split("_")[0] if "_" in args.session else args.session
@@ -269,15 +333,21 @@ def main() -> None:
         )
 
     if args.model_type == "all":
-        configs_vanilla = attach_session_metadata(make_configs("vanilla_rnn"), "vanilla_rnn")
+        configs_vanilla = attach_session_metadata(
+            make_configs("vanilla_rnn"), "vanilla_rnn"
+        )
         configs_lstm = attach_session_metadata(make_configs("lstm"), "lstm")
     elif args.model_type == "lstm":
         configs_vanilla = []
         configs_lstm = attach_session_metadata(make_configs("lstm"), "lstm")
     else:
-        configs_vanilla = attach_session_metadata(make_configs("vanilla_rnn"), "vanilla_rnn")
+        configs_vanilla = attach_session_metadata(
+            make_configs("vanilla_rnn"), "vanilla_rnn"
+        )
         configs_lstm = []
-    print(f"Vanilla configs: {len(configs_vanilla)} | LSTM configs: {len(configs_lstm)}")
+    print(
+        f"Vanilla configs: {len(configs_vanilla)} | LSTM configs: {len(configs_lstm)}"
+    )
 
     if configs_vanilla:
         run_sweep(
