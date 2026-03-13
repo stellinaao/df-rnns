@@ -12,3 +12,4 @@ scripts/checkpoints/
 src/__pycache__
 *.json
 *.pt
+.vscode
