@@ -63,11 +63,6 @@ def objective(trial):
     end = time.time()
     print(f"Trial {trial.number} took {end - start:.2f} seconds")
 
-    # # pruning/early stopping
-    # trial.report(r2_val, step=0)
-    # if trial.should_prune():
-    #     raise optuna.exceptions.TrialPruned()
-
     return r2_val
 
 

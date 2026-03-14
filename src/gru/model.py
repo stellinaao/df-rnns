@@ -1,6 +1,4 @@
-# implement a rate-based GRU from scratch
-# with reference to
-# https://www.codegenes.net/blog/gru-from-scratch-pytorch/
+# implement a rate-based GRU
 
 import torch.nn as nn
 
